@@ -19,6 +19,9 @@ from typing import Dict, List, Tuple, Optional
 import warnings
 warnings.filterwarnings('ignore')
 
+# 固定随机种子，确保结果可重复
+np.random.seed(42)
+
 plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial', 'sans-serif']
 plt.rcParams['axes.unicode_minus'] = False
 
@@ -221,16 +224,22 @@ def hit_and_run_sample_v2(week_data: Dict, method: str = 'percent',
     judge_scores = np.array([scores.get(c, 0) for c in active])
     
     def is_feasible(fan_share: np.ndarray) -> bool:
-        """检查是否满足淘汰约束"""
+        """检查是否满足淘汰约束（放宽容差提高采样效率）"""
         if np.any(fan_share < -1e-10) or np.abs(fan_share.sum() - 1) > 1e-6:
             return False
         
         combined = compute_combined_score(fan_share, judge_scores, method)
         min_score = combined.min()
+        score_range = combined.max() - min_score + 1e-10
         
-        # 所有被淘汰者的得分都应该等于最低分
+        # RANK method 使用更宽松的容差（排名制离散性更强）
+        if method == 'rank':
+            tolerance = max(1e-3, score_range * 0.05)  # 5% 容差
+        else:
+            tolerance = max(1e-4, score_range * 0.01)  # 1% 容差
+        
         for idx in elim_indices:
-            if combined[idx] > min_score + 1e-6:
+            if combined[idx] > min_score + tolerance:
                 return False
         
         return True
@@ -408,9 +417,11 @@ def build_hmm_and_find_map_path_v2(sampled_data: Dict, n_states: int = 40) -> Di
         
         # 被淘汰者得分应该最低
         log_lik = 0.0
+        # RANK method 使用更强的观测似然权重（排名制需要更强的约束）
+        weight = 150 if method == 'rank' else 100
         for idx in elim_indices:
             diff = min_score - combined[idx]
-            log_lik += diff * 10  # 得分越接近最低，似然越高
+            log_lik += diff * weight
         
         return log_lik
     
@@ -456,9 +467,10 @@ def build_hmm_and_find_map_path_v2(sampled_data: Dict, n_states: int = 40) -> Di
                 for i in range(n_st_prev):
                     state_i = week_states[t-1][i]
                     
-                    # 平滑性转移概率
+                    # 平滑性转移概率（RANK method 使用更小的平滑权重）
                     diff = state_j[idx_curr] - state_i[idx_prev]
-                    smoothness = -np.sum(diff ** 2) * 20
+                    smooth_weight = 3 if method == 'rank' else 5
+                    smoothness = -np.sum(diff ** 2) * smooth_weight
                     
                     log_prob = log_delta[t-1][i] + smoothness + obs_lik
                     
@@ -1044,7 +1056,7 @@ def main():
     print("=" * 60 + "\n")
     
     # 加载数据
-    data_path = r"C:\Users\zhaoh\Desktop\C\2026_MCM_Problem_C_Data.csv"
+    data_path = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\2026_MCM_Problem_C_Data.csv"
     seasons_data, valid_seasons = load_and_preprocess_data(data_path)
     
     # 选择更多代表性赛季（覆盖不同特点）
@@ -1055,7 +1067,7 @@ def main():
     print()
     
     all_results = []
-    save_prefix = r"C:\Users\zhaoh\Desktop\C\fan_vote_v2"
+    save_prefix = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\fan_vote_photo\fan_vote_v2"
     
     for season in selected_seasons:
         print(f"\n{'='*60}")
@@ -1065,14 +1077,16 @@ def main():
         season_data = seasons_data[season]
         method = 'rank' if (season <= 2 or season >= 28) else 'percent'
         
-        # Step 1: 可行域采样
+        # Step 1: 可行域采样（RANK method 使用更多采样以提高质量）
+        n_samples = 1500 if method == 'rank' else 1000
         print(f"  Step 1: Hit-and-Run Feasible Region Sampling ({method})...")
-        sampled_data = sample_season_feasible_region_v2(season_data, season, n_samples=400)
+        sampled_data = sample_season_feasible_region_v2(season_data, season, n_samples=n_samples)
         print(f"    - Weeks sampled: {len(sampled_data['weeks'])}")
         
-        # Step 2: HMM + Viterbi
+        # Step 2: HMM + Viterbi（RANK method 使用更多状态以提高精度）
+        n_states = 80 if method == 'rank' else 60
         print("  Step 2: HMM + Viterbi MAP Path...")
-        map_result = build_hmm_and_find_map_path_v2(sampled_data, n_states=35)
+        map_result = build_hmm_and_find_map_path_v2(sampled_data, n_states=n_states)
         print(f"    - Path length: {len(map_result['path'])}")
         print(f"    - Log probability: {map_result['log_prob']:.2f}")
         
