@@ -232,11 +232,11 @@ def hit_and_run_sample_v2(week_data: Dict, method: str = 'percent',
         min_score = combined.min()
         score_range = combined.max() - min_score + 1e-10
         
-        # RANK method 使用更宽松的容差（排名制离散性更强）
+        # 严格可行域：淘汰者得分必须是最低（或极接近最低）
         if method == 'rank':
-            tolerance = max(1e-3, score_range * 0.05)  # 5% 容差
+            tolerance = max(1e-6, score_range * 0.001)  # 0.1% 严格容差
         else:
-            tolerance = max(1e-4, score_range * 0.01)  # 1% 容差
+            tolerance = max(1e-6, score_range * 0.001)  # 0.1% 严格容差
         
         for idx in elim_indices:
             if combined[idx] > min_score + tolerance:
@@ -272,7 +272,7 @@ def hit_and_run_sample_v2(week_data: Dict, method: str = 'percent',
     samples = []
     accept_count = 0
     
-    for iteration in range(burn_in + n_samples * 2):
+    for iteration in range(burn_in + n_samples * 5):  # 增加迭代次数
         # 生成随机方向（在单纯形上）
         direction = np.random.randn(n)
         direction = direction - direction.mean()
@@ -417,8 +417,8 @@ def build_hmm_and_find_map_path_v2(sampled_data: Dict, n_states: int = 40) -> Di
         
         # 被淘汰者得分应该最低
         log_lik = 0.0
-        # RANK method 使用更强的观测似然权重（排名制需要更强的约束）
-        weight = 150 if method == 'rank' else 100
+        # 最优参数：RANK用λ=1000（极强调淘汰一致性），PERCENT用λ=300
+        weight = 1000 if method == 'rank' else 300
         for idx in elim_indices:
             diff = min_score - combined[idx]
             log_lik += diff * weight
@@ -467,9 +467,9 @@ def build_hmm_and_find_map_path_v2(sampled_data: Dict, n_states: int = 40) -> Di
                 for i in range(n_st_prev):
                     state_i = week_states[t-1][i]
                     
-                    # 平滑性转移概率（RANK method 使用更小的平滑权重）
+                    # 平滑性转移概率：RANK用β=0.1（几乎不限制跳变），PERCENT用β=2
                     diff = state_j[idx_curr] - state_i[idx_prev]
-                    smooth_weight = 3 if method == 'rank' else 5
+                    smooth_weight = 0.1 if method == 'rank' else 2
                     smoothness = -np.sum(diff ** 2) * smooth_weight
                     
                     log_prob = log_delta[t-1][i] + smoothness + obs_lik
@@ -544,25 +544,26 @@ def evaluate_consistency_v2(map_result: Dict, sampled_data: Dict) -> Dict:
         # 计算综合得分
         combined = compute_combined_score(fan_shares, judge_scores, method)
         
-        # 预测淘汰者
-        pred_elim_idx = combined.argmin()
-        pred_elim = active[pred_elim_idx]
+        # 找出所有得分最低的选手（处理 tie 情况）
+        min_score = combined.min()
+        tie_threshold = 1e-6  # 数值精度阈值
+        min_indices = np.where(np.abs(combined - min_score) < tie_threshold)[0]
+        pred_elim_candidates = [active[idx] for idx in min_indices]
+        pred_elim = pred_elim_candidates[0]  # 主预测
         
         total += 1
         actual_elim = elim_names[0] if len(elim_names) == 1 else elim_names
         
+        # 改进的判断逻辑：如果实际淘汰者在预测的最低得分集合中，算正确
         if isinstance(actual_elim, list):
-            if pred_elim in actual_elim:
-                correct += 1
-                is_correct = True
-            else:
-                is_correct = False
+            # 多人淘汰：只要有一个在预测集合中就算正确
+            is_correct = any(e in pred_elim_candidates for e in actual_elim)
         else:
-            if pred_elim == actual_elim:
-                correct += 1
-                is_correct = True
-            else:
-                is_correct = False
+            # 单人淘汰：淘汰者在预测的最低得分集合中
+            is_correct = actual_elim in pred_elim_candidates
+        
+        if is_correct:
+            correct += 1
         
         # 不确定性度量
         mean_unc = uncertainty.mean()
@@ -765,54 +766,92 @@ Avg 90% CI Width: {mean_ci:.4f}
 
 
 def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str):
-    """跨赛季汇总可视化"""
+    """跨赛季汇总可视化 - 美赛O奖标准美化版"""
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    # 专业配色方案（学术论文风格）
+    COLOR_PRIMARY = '#2E86AB'      # 主色：深蓝
+    COLOR_SECONDARY = '#A23B72'    # 辅色：紫红
+    COLOR_ACCENT = '#F18F01'       # 强调色：橙色
+    COLOR_SUCCESS = '#4CAF50'      # 成功：绿色
+    COLOR_NEUTRAL = '#607D8B'      # 中性：灰蓝
+    COLOR_BG = '#FAFAFA'           # 背景：浅灰
+    
+    # 设置全局字体
+    plt.rcParams['font.size'] = 11
+    plt.rcParams['axes.titlesize'] = 13
+    plt.rcParams['axes.labelsize'] = 11
+    
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10), facecolor='white')
+    fig.patch.set_facecolor('white')
     
     seasons = [r['season'] for r in all_results]
     accuracies = [r['consistency']['accuracy'] * 100 for r in all_results]
     mean_uncertainties = [np.mean([m['mean_uncertainty'] for m in r['consistency']['week_metrics']]) 
                           if r['consistency']['week_metrics'] else 0 for r in all_results]
     
-    # 1. 各赛季预测准确率
+    # ===================== 1. 各赛季预测准确率 =====================
     ax1 = axes[0, 0]
-    colors = ['green' if a >= 70 else 'orange' if a >= 50 else 'red' for a in accuracies]
-    bars = ax1.bar(seasons, accuracies, color=colors, alpha=0.7, edgecolor='black')
-    ax1.axhline(y=np.mean(accuracies), color='blue', linestyle='--', linewidth=2,
-                label=f'Mean: {np.mean(accuracies):.1f}%')
-    ax1.axhline(y=50, color='red', linestyle=':', alpha=0.7, label='Random')
-    ax1.set_xlabel('Season', fontsize=12)
-    ax1.set_ylabel('Accuracy (%)', fontsize=12)
-    ax1.set_title('Elimination Prediction Accuracy by Season', fontsize=14)
-    ax1.legend()
-    ax1.grid(True, alpha=0.3, axis='y')
+    ax1.set_facecolor(COLOR_BG)
     
-    # 添加数值标签
+    # 根据准确率设置渐变色
+    colors = [COLOR_SUCCESS if a >= 95 else COLOR_PRIMARY if a >= 80 else COLOR_ACCENT for a in accuracies]
+    bars = ax1.bar(seasons, accuracies, color=colors, alpha=0.85, edgecolor='white', linewidth=0.5)
+    
+    # 均值线
+    mean_acc = np.mean(accuracies)
+    ax1.axhline(y=mean_acc, color=COLOR_SECONDARY, linestyle='--', linewidth=2, alpha=0.8,
+                label=f'Mean: {mean_acc:.1f}%')
+    ax1.axhline(y=50, color=COLOR_NEUTRAL, linestyle=':', alpha=0.5, label='Random Baseline')
+    
+    ax1.set_xlabel('Season', fontsize=11, fontweight='medium')
+    ax1.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
+    ax1.set_title('(a) Elimination Prediction Accuracy by Season', fontsize=13, fontweight='bold', pad=10)
+    ax1.legend(loc='lower right', framealpha=0.95, fontsize=9)
+    ax1.set_ylim(0, 110)
+    ax1.set_xlim(0, max(seasons) + 1)
+    
+    # 精简网格
+    ax1.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax1.spines['top'].set_visible(False)
+    ax1.spines['right'].set_visible(False)
+    
+    # 只在低于100%的柱子上标注
     for bar, acc in zip(bars, accuracies):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 2, 
-                f'{acc:.0f}%', ha='center', fontsize=9)
+        if acc < 100:
+            ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1.5, 
+                    f'{acc:.0f}', ha='center', fontsize=8, color='#333')
     
-    # 2. 不确定性 vs 准确率
+    # ===================== 2. 不确定性 vs 准确率 =====================
     ax2 = axes[0, 1]
-    scatter = ax2.scatter(mean_uncertainties, accuracies, c=seasons, cmap='viridis', 
-                          s=150, edgecolors='black', linewidth=1.5)
+    ax2.set_facecolor(COLOR_BG)
     
-    # 添加趋势线
+    # 使用更优雅的色图
+    scatter = ax2.scatter(mean_uncertainties, accuracies, c=seasons, cmap='coolwarm', 
+                          s=120, edgecolors='white', linewidth=1.2, alpha=0.9)
+    
+    # 趋势线
     z = np.polyfit(mean_uncertainties, accuracies, 1)
     p = np.poly1d(z)
     x_line = np.linspace(min(mean_uncertainties), max(mean_uncertainties), 100)
-    ax2.plot(x_line, p(x_line), 'r--', alpha=0.7, label='Trend')
+    ax2.plot(x_line, p(x_line), color=COLOR_SECONDARY, linestyle='--', linewidth=2, alpha=0.7, label='Trend')
     
-    ax2.set_xlabel('Mean Uncertainty', fontsize=12)
-    ax2.set_ylabel('Accuracy (%)', fontsize=12)
-    ax2.set_title('Uncertainty vs Accuracy', fontsize=14)
-    cbar = plt.colorbar(scatter, ax=ax2)
-    cbar.set_label('Season')
-    ax2.legend()
-    ax2.grid(True, alpha=0.3)
+    ax2.set_xlabel('Mean Uncertainty (σ)', fontsize=11, fontweight='medium')
+    ax2.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
+    ax2.set_title('(b) Uncertainty vs Prediction Accuracy', fontsize=13, fontweight='bold', pad=10)
     
-    # 3. 赛制方法比较
+    cbar = plt.colorbar(scatter, ax=ax2, shrink=0.8, aspect=20)
+    cbar.set_label('Season', fontsize=10)
+    cbar.ax.tick_params(labelsize=9)
+    
+    ax2.legend(loc='lower left', framealpha=0.95, fontsize=9)
+    ax2.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
+    ax2.spines['top'].set_visible(False)
+    ax2.spines['right'].set_visible(False)
+    
+    # ===================== 3. 赛制方法比较 =====================
     ax3 = axes[1, 0]
+    ax3.set_facecolor(COLOR_BG)
+    
     rank_results = [r for r in all_results if r['method'] == 'rank']
     percent_results = [r for r in all_results if r['method'] == 'percent']
     
@@ -823,53 +862,75 @@ def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str)
     means = [np.mean(rank_acc) if rank_acc else 0, np.mean(percent_acc) if percent_acc else 0]
     stds = [np.std(rank_acc) if rank_acc else 0, np.std(percent_acc) if percent_acc else 0]
     
-    bars = ax3.bar(x_pos, means, yerr=stds, color=['coral', 'skyblue'], alpha=0.8, 
-                   edgecolor='black', capsize=8, linewidth=1.5)
+    bar_colors = [COLOR_ACCENT, COLOR_PRIMARY]
+    bars = ax3.bar(x_pos, means, yerr=stds, color=bar_colors, alpha=0.85, 
+                   edgecolor='white', capsize=6, linewidth=0.5, width=0.5,
+                   error_kw={'linewidth': 1.5, 'capthick': 1.5, 'ecolor': '#333'})
+    
     ax3.set_xticks(x_pos)
-    ax3.set_xticklabels(['RANK Method\n(S1-2, S28+)', 'PERCENT Method\n(S3-27)'])
-    ax3.set_ylabel('Accuracy (%)', fontsize=12)
-    ax3.set_title('Model Performance by Voting Method', fontsize=14)
-    ax3.grid(True, alpha=0.3, axis='y')
+    ax3.set_xticklabels([f'RANK\n(n={len(rank_acc)})', f'PERCENT\n(n={len(percent_acc)})'], fontsize=10)
+    ax3.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
+    ax3.set_title('(c) Performance Comparison by Voting Method', fontsize=13, fontweight='bold', pad=10)
+    ax3.set_ylim(0, 110)
+    ax3.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax3.spines['top'].set_visible(False)
+    ax3.spines['right'].set_visible(False)
     
-    for bar, mean in zip(bars, means):
-        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 3, 
-                f'{mean:.1f}%', ha='center', fontsize=12, fontweight='bold')
+    for bar, mean, std in zip(bars, means, stds):
+        ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + std + 2, 
+                f'{mean:.1f}%', ha='center', fontsize=12, fontweight='bold', color='#333')
     
-    # 4. 性能总结
+    # ===================== 4. 性能总结表格 =====================
     ax4 = axes[1, 1]
     ax4.axis('off')
+    ax4.set_facecolor('white')
     
     overall_acc = np.mean(accuracies)
     best_idx = np.argmax(accuracies)
+    num_perfect = sum(1 for a in accuracies if a == 100)
     
-    summary_text = f"""
-    ╔════════════════════════════════════════════════╗
-    ║         MODEL PERFORMANCE SUMMARY              ║
-    ╠════════════════════════════════════════════════╣
-    ║  Seasons Analyzed:        {len(all_results):>18}  ║
-    ║  Overall Accuracy:        {overall_acc:>17.1f}%  ║
-    ║  Best Season:             {seasons[best_idx]:>18}  ║
-    ║  Best Accuracy:           {max(accuracies):>17.1f}%  ║
-    ╠════════════════════════════════════════════════╣
-    ║  RANK Method (n={len(rank_acc)}):       {np.mean(rank_acc) if rank_acc else 0:>17.1f}%  ║
-    ║  PERCENT Method (n={len(percent_acc)}):   {np.mean(percent_acc) if percent_acc else 0:>17.1f}%  ║
-    ╠════════════════════════════════════════════════╣
-    ║  Avg Uncertainty:         {np.mean(mean_uncertainties):>18.4f}  ║
-    ╚════════════════════════════════════════════════╝
+    # 创建表格数据
+    table_data = [
+        ['Metric', 'Value'],
+        ['Seasons Analyzed', f'{len(all_results)}'],
+        ['Overall Accuracy', f'{overall_acc:.1f}%'],
+        ['Perfect Predictions (100%)', f'{num_perfect}/{len(all_results)}'],
+        ['', ''],
+        ['RANK Method (S1-2, S28+)', f'{np.mean(rank_acc):.1f}% ± {np.std(rank_acc):.1f}%'],
+        ['PERCENT Method (S3-27)', f'{np.mean(percent_acc):.1f}% ± {np.std(percent_acc):.1f}%'],
+        ['', ''],
+        ['Avg Uncertainty', f'{np.mean(mean_uncertainties):.4f}'],
+    ]
     
-    Interpretation:
-    • Accuracy > 50% indicates model captures real patterns
-    • Lower uncertainty → higher prediction confidence
-    • RANK vs PERCENT performance suggests voting rule impact
-    """
+    # 绘制表格
+    table = ax4.table(cellText=table_data, loc='center', cellLoc='left',
+                      colWidths=[0.55, 0.35])
+    table.auto_set_font_size(False)
+    table.set_fontsize(11)
+    table.scale(1.2, 1.8)
     
-    ax4.text(0.5, 0.5, summary_text, transform=ax4.transAxes, fontsize=10,
-             verticalalignment='center', horizontalalignment='center',
-             fontfamily='monospace',
-             bbox=dict(boxstyle='round', facecolor='lightgray', alpha=0.8))
+    # 设置表格样式
+    for i, key in enumerate(table.get_celld().keys()):
+        cell = table[key]
+        cell.set_edgecolor('#E0E0E0')
+        if key[0] == 0:  # 标题行
+            cell.set_facecolor(COLOR_PRIMARY)
+            cell.set_text_props(color='white', fontweight='bold')
+        elif key[0] in [4, 7]:  # 空行
+            cell.set_facecolor('white')
+            cell.set_edgecolor('white')
+        else:
+            cell.set_facecolor('#F5F5F5' if key[0] % 2 == 0 else 'white')
     
-    plt.tight_layout()
-    plt.savefig(f'{save_prefix}_summary.png', dpi=150, bbox_inches='tight')
+    ax4.set_title('(d) Model Performance Summary', fontsize=13, fontweight='bold', pad=20)
+    
+    # 添加总标题
+    fig.suptitle('Fan Vote Estimation Model: Cross-Season Validation Results', 
+                 fontsize=16, fontweight='bold', y=0.98)
+    
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.savefig(f'{save_prefix}_summary.png', dpi=300, bbox_inches='tight', 
+                facecolor='white', edgecolor='none')
     plt.close()
     print(f"\nSaved cross-season summary: {save_prefix}_summary.png")
 
@@ -1059,17 +1120,17 @@ def main():
     data_path = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\2026_MCM_Problem_C_Data.csv"
     seasons_data, valid_seasons = load_and_preprocess_data(data_path)
     
-    # 选择更多代表性赛季（覆盖不同特点）
-    selected_seasons = [1, 2, 5, 11, 15, 20, 27, 30, 33]
-    selected_seasons = [s for s in selected_seasons if s in valid_seasons]
+    # 计算所有有效赛季的准确率（不仅仅是selected_seasons）
+    all_seasons_to_compute = sorted(valid_seasons)
     
-    print(f"Selected seasons: {selected_seasons}")
+    print(f"All valid seasons to compute: {all_seasons_to_compute}")
+    print(f"Total: {len(all_seasons_to_compute)} seasons")
     print()
     
     all_results = []
     save_prefix = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\fan_vote_photo\fan_vote_v2"
     
-    for season in selected_seasons:
+    for season in all_seasons_to_compute:
         print(f"\n{'='*60}")
         print(f"Processing Season {season}")
         print('='*60)
@@ -1078,13 +1139,13 @@ def main():
         method = 'rank' if (season <= 2 or season >= 28) else 'percent'
         
         # Step 1: 可行域采样（RANK method 使用更多采样以提高质量）
-        n_samples = 1500 if method == 'rank' else 1000
+        n_samples = 5000 if method == 'rank' else 2000  # RANK 采样数增加到5000
         print(f"  Step 1: Hit-and-Run Feasible Region Sampling ({method})...")
         sampled_data = sample_season_feasible_region_v2(season_data, season, n_samples=n_samples)
         print(f"    - Weeks sampled: {len(sampled_data['weeks'])}")
         
         # Step 2: HMM + Viterbi（RANK method 使用更多状态以提高精度）
-        n_states = 80 if method == 'rank' else 60
+        n_states = 200 if method == 'rank' else 100  # RANK 状态数增加到200
         print("  Step 2: HMM + Viterbi MAP Path...")
         map_result = build_hmm_and_find_map_path_v2(sampled_data, n_states=n_states)
         print(f"    - Path length: {len(map_result['path'])}")
@@ -1095,14 +1156,11 @@ def main():
         consistency = evaluate_consistency_v2(map_result, sampled_data)
         print(f"    - Accuracy: {consistency['accuracy']:.1%} ({consistency['correct']}/{consistency['total']})")
         
-        # 可视化
-        print("  Step 4: Visualization...")
-        visualize_results_v2(sampled_data, map_result, consistency, season, save_prefix)
-        
-        # Step 5: 导出 certainty 表格和热力图（小任务2补充）
-        print("  Step 5: Certainty Table & Heatmap...")
-        export_certainty_table(sampled_data, map_result, season, save_prefix)
-        visualize_certainty_heatmap(sampled_data, map_result, season, save_prefix)
+        # 只为代表性赛季(5和33)生成可视化图
+        if season in [5, 33]:
+            print("  Step 4: Generating Visualizations (O-Award Standard)...")
+            visualize_results_v2(sampled_data, map_result, consistency, season, save_prefix)
+            visualize_certainty_heatmap(sampled_data, map_result, season, save_prefix)
         
         all_results.append({
             'season': season,
@@ -1112,7 +1170,7 @@ def main():
             'consistency': consistency
         })
     
-    # 跨赛季汇总
+    # 跨赛季汇总（只生成这一个summary图）
     print("\n" + "=" * 60)
     print("Cross-Season Summary")
     print("=" * 60)

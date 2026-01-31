@@ -548,7 +548,7 @@ def create_magnifier_plots(sampled_data: Dict, map_result: Dict, season_num: int
     ax2.set_ylabel('Fan Vote Share', fontsize=14)
     ax2.set_title(f'Week {detail_week["week"]}: Posterior Distribution (Red=Eliminated)', 
                   fontsize=16, fontweight='bold')
-    ax2.tick_params(axis='x', rotation=45, labelsize=11)
+    ax2.tick_params(axis='x', rotation=0, labelsize=10)  # 水平显示人名
     ax2.grid(True, alpha=0.3, axis='y', linestyle='--')
     ax2.set_facecolor('#fafafa')
     
