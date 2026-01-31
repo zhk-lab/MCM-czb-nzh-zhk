@@ -10,6 +10,8 @@
 
 
 ## 第二问建模思路：
+
+### 2.1
 问题1:是不是需要一个表来将fan_vote_estimation_v2.py计算得来的每个season每个week每个person的share保存下来，就像C_data里是评委票数，是不是我们需要再建一个表格来记录share。
 
 思路：
@@ -18,7 +20,7 @@
 3. 计算两规则之间的距离也就是差异度。
 4. 偏向fan的程度也就是FFI。FFI(method)>0是更接近fan,FFI(method)<0是更接近judge,谁的FFI更大就更接近fan。
 
-### 执行思路：
+#### 执行思路：
 1. 对每个赛季、每一周（在当周 active 选手集合上），构造四种排序：
    * $R_{\text{judge}}$：只用评委分数（或评委 percent）得到的排序
    * $R_{\text{fan}}$：只用估计的 fan share 得到的排序
@@ -37,7 +39,7 @@
      * 比较 $\text{FFI}(\text{rank})$ vs $\text{FFI}(\text{percent})$，谁更大谁更偏向 fan。
 
 
-### ✅ 执行结果：
+#### ✅ 执行结果：
 
 **1. 数据准备：Fan Vote Shares 数据表**
 - **文件**：`fan_vote_shares.csv`（2779条记录）
@@ -67,7 +69,7 @@
 | `Task2_1_FFI_heatmap.png` | 热力图 | FFI 跨 Week×Season 分布 | PERCENT 绿色（正FFI）区域更广 |
 | `Task2_1_season_summary.png` | 4子图综合 | (a)FFI趋势 (b)距离 (c)一致率 (d)FFI分布 | 全面展示时间趋势和统计分布 |
 
- 📊 核心数据发现
+📊 核心数据发现
 
 **方法差异度（Method Disagreement）**
 - **淘汰一致率**：75.0%（两种方法在 25% 的周次会产生不同的淘汰者）
@@ -83,4 +85,315 @@
 - **PERCENT 方法显著更偏向 fan votes**，其产生的排序结构更接近"纯粉丝投票"的结果
 - **RANK 方法相对更平衡**（FFI 接近 0），对 judge 和 fan 的权重较为均衡
 - 这解释了为什么 Season 2（Jerry Rice）和 Season 27（Bobby Bones）的"争议"会发生在不同规则下
+
+
+### 2.2
+思路：
+    1. 确定一个衡量标准，来确定哪些选手是争议选手，即评委评分和粉丝投票差异巨大的选手。（必须包含提到的四位选手）
+    2. 对于每一位争议选手，如果改变结合评委分和粉丝票的方法（比如从“排名相加”改为“百分比相加”），最终的结果（淘汰或晋级）是否会一样？
+    3. 如果在规则中加入一个额外的机制：“每周倒数最后两名（Bottom Two）产生后，不再直接淘汰最后一名，而是由评委在最后两名中决定谁走谁留”，这会对结果产生什么影响？
+
+
+
+#### 执行思路：
+Step 1：争议选手识别（Controversy Identification）
+
+**目标**：给出一个可量化、可复现的争议判别标准；同时保证包含题目指定的四个争议选手，并可拓展发现更多争议选手。
+
+**核心思路**：在每个赛季的每一周（当周 active 选手集合上）计算 judge 与 fan 的相对排序，并刻画系统性分歧。
+
+- 计算每周排名（并列用 mid-rank）：
+  - \(r^{judge}_{i,t}\)：按 judge score 排名（分数高更好，rank 数字更小更好）
+  - \(r^{fan}_{i,t}\)：按 fan vote share 排名（share 高更好）
+
+- 每周分歧：
+  \[
+  \Delta_{i,t}=r^{judge}_{i,t}-r^{fan}_{i,t}
+  \]
+  - \(\Delta_{i,t}>0\)：粉丝更偏爱（fan-favored）
+  - \(\Delta_{i,t}<0\)：评委更偏爱（judge-favored）
+
+- 赛季级争议强度（示例）：
+  \[
+  CI_i=\frac{1}{T_i}\sum_{t} |\Delta_{i,t}|\cdot w_t,\quad w_t=\frac{t}{T_i}
+  \]
+  \(CI_i\) 越大，表示分歧越显著且越集中于后期关键周。
+
+**输出**：
+- 争议选手列表（含分歧方向：fan-favored / judge-favored）
+- 四个指定案例的指标汇总表（平均 judge rank、平均 fan rank、最大分歧周、CI 分数等）
+
+---
+
+Step 2：规则切换的反事实模拟（Counterfactual: Rank vs Percent）
+
+**目标**：对每个争议选手，回答“如果把合并规则从 rank 切换到 percent（或反过来），该选手的淘汰/晋级/最终名次是否改变？关键改变发生在哪些周？”
+
+**原则**：固定当周的 judge scores \(S_{i,t}\)（来自数据集）和我们估计的 fan share \(p_{i,t}\)（来自 Task 1 的输出），在同一赛季上分别跑两条“整季淘汰链”。
+
+- **Rank 合并（Appendix rank scheme）**：
+  - judge rank + fan rank 得到 combined rank
+  - combined rank 最差者淘汰（并列最差：用并列集合处理）
+
+- **Percent 合并（Appendix percent scheme）**：
+  - judge percent：\(J_{i,t}=S_{i,t}/\sum_j S_{j,t}\)
+  - fan percent：\(F_{i,t}=p_{i,t}\)（本身已归一化为 share）
+  - combined percent：\(C_{i,t}=J_{i,t}+F_{i,t}\)
+  - combined percent 最小者淘汰（并列最小：用并列集合处理）
+
+**输出**：
+- 每个争议选手在两规则下的：淘汰周 / 最终名次 / 是否进入决赛
+- “关键转折周”列表：哪些周 bottom-two 或淘汰者发生变化（用于解释争议机制）
+
+---
+
+Step 3：加入 S28+ judges-save 机制（仅 Rank + Save）
+
+> 更正说明：题目描述指出 judges-save 机制与“回到 rank 合并法”同时出现（合理假设从 S28 开始），因此本节只讨论 **rank+save**，不再引入 percent+save。
+
+**目标**：量化 “Bottom Two + judges choose” 机制对争议选手与整体结果的影响：它是否减少 fan-favored 的争议晋级？是否让结果更贴近评委？
+
+**机制定义（每周）**：
+1. 先按 **rank 合并**规则确定 Bottom Two（综合排名最差两人）。
+2. 再由 judges 在 Bottom Two 中选择淘汰者：淘汰 **judge 更差者**（judge score 更低或 judge rank 更大）。
+3. 更新 active，进入下一周，形成整季淘汰链。
+
+**输出**：
+- rank vs rank+save 的淘汰链对比（对争议选手的名次影响、关键周变化）
+- “被 save 的次数/周次”统计与典型周案例解释
+
+Step 4：临界粉丝投票（Critical Fan Vote）与安全边际（Safety Margin）
+
+**目标**：解释争议“为什么发生、发生得有多惊险”，并评估结论对 fan vote 估计不确定性的稳健性。
+
+**概念定义（每周 t，对选手 i）**：
+- 临界粉丝份额 \(p^*_{i,t}\)：在固定当周 judge scores 和其他选手 fan shares 的前提下，使选手 \(i\) **刚好不被淘汰** 所需的最小 fan share。
+- 安全边际：
+  \[
+  \text{margin}_{i,t}=p_{i,t}-p^*_{i,t}
+  \]
+
+**解释**：
+- margin 小（例如 <5%）：说明选手“走钢丝”存活，粉丝支持稍降就会被淘汰 → 争议更强。
+- margin 大：说明结果稳健，不太依赖粉丝的极端支持。
+
+**与规则切换的关系**：
+- 若对争议选手普遍出现 \(p^*_{\text{percent}}(i,t) > p^*_{\text{rank}}(i,t)\)，则说明 percent 下需要更高 fan 支持才能弥补 judge 劣势 → percent 更偏向 judge，rank 更容易出现 fan-favored 的争议晋级。
+
+**输出**（建议图表）：
+- 对每个指定案例：绘制 “actual fan share（含CI带） vs critical fan share” 的逐周曲线，并标注 danger zone / safety margin。
+- 列出 margin 最小的关键周（解释“关键转折点”）。
+
+
+
+
+
+
+
+
+## 第二大问第二小问（2.2）- 详细完成说明
+
+### ✅ 一步一步做了什么、怎么做的、生成了什么图
+
+---
+
+### **Step 1: 争议选手识别（Controversy Identification）**
+
+**做了什么**：
+- 从 **361 名选手**（34个赛季）中识别 judge vs fan 存在显著分歧的争议选手
+- 计算每周 judge rank 和 fan rank 的分歧 $\Delta_{i,t}=r^{judge}_{i,t}-r^{fan}_{i,t}$
+- 使用加权指数量化争议强度（后期周权重更大）
+
+**怎么做的**：
+1. 从 `fan_vote_shares.csv` 获取每周每人的 fan share
+2. 从原始数据提取每周 judge total score（累加所有 judge 分数）
+3. 对每周所有 active 选手计算排名（mid-rank 处理并列）
+4. 统计指标：平均分歧、最大分歧、judge 最低周数、加权争议指数
+
+**生成的图表**：`Step1_controversy_identification.png`
+
+**图展示内容**：
+- **上半部分（4个雷达图）**：四个指定案例的多维对比
+  - 5个维度：平均分歧、最大分歧、最低周数比例、最终名次、加权分歧
+  - **Bristol Palin 面积最大**（争议强度最高：加权分歧 1.52）
+  - **Bobby Bones** 虽是冠军，但分歧指标仍显著（加权 1.36）
+- **下半部分（水平条形图）**：Top 20 争议选手排名
+  - 四个指定案例标注★
+  - 额外发现高争议选手：Mischa Barton (5.44)、Steve Wozniak (5.38)
+
+**关键发现**：
+- ✓ 四个指定案例**全部成功识别**
+- ✓ 加权分歧范围：1.08-1.52（显著高于平均 0.5）
+- ✓ Bristol Palin: 5/10 周 judge 最低（50%，最极端持续性）
+- ✓ 所有四人均为 **fan-favored 类型**（judge 低但名次高）
+
+---
+
+### **Step 2: 反事实模拟（Counterfactual: Rank vs Percent）**
+
+**做了什么**：
+- 对每个争议选手所在赛季，固定 fan shares 和 judge scores
+- 分别模拟 **RANK 规则**和 **PERCENT 规则**的**整季淘汰链**
+- 对比最终名次变化，定位关键转折
+
+**怎么做的**：
+1. **RANK 规则**：judge_rank + fan_rank，最大值淘汰
+2. **PERCENT 规则**：$\frac{S_{i,t}}{\sum S} + p_{i,t}$，最小值淘汰
+3. 每周淘汰后更新 active 集合，逐周模拟至赛季结束
+4. 记录每人最终名次、淘汰周
+
+**生成的图表**：`Step2_bump_chart.png`（**创新的 Bump Chart / 斜率轨迹图**）
+
+**图展示内容**：
+- **平滑曲线**展示四人在三种规则下的名次演变（使用 spline 插值）
+- **关键模式**：
+  - 所有曲线从 RANK → PERCENT 时**下降**（名次变差）
+  - Jerry Rice: #2 → #4（降2名）
+  - Billy Ray Cyrus: #5 → #7（降2名）
+  - Bristol Palin: #3 → #5（降2名）
+  - **Bobby Bones**: #1 → #2 → #1（唯一在所有规则下都保持前2，粉丝支持极强）
+- **RANK+Save** 轻微回升 +1 名（部分缓解，但无法完全恢复）
+
+**机制解释**：
+- **RANK "压缩"judge 分差**：27分 vs 41分 → rank 4 vs rank 1（差3个名次）→ 低分选手更易被 fan 救
+- **PERCENT 保留分差**：27/204=13% vs 41/204=20%（差7%）→ 极端低分难以用 fan 份额弥补
+
+---
+
+### **Step 3: Judges Save 机制影响（Rank + Save）**
+
+**做了什么**：
+- 模拟 Season 28+ 引入的 "Bottom Two → Judges Choose" 机制
+- 对比 RANK Only vs RANK+Save 的淘汰链与最终名次
+- 统计"被 save"次数和影响程度
+
+**怎么做的**：
+1. 每周先用 **RANK 规则**找 Bottom Two（综合排名最差两人）
+2. 在 Bottom Two 中，judges 淘汰 **judge 分数更低者**（而非综合排名更差者）
+3. 更新 active，继续下一周
+4. 记录 save 事件：原本会淘汰A，save后淘汰B
+
+**生成的图表**：`Step3_enhanced_save_impact.png`（**瀑布图 + 放射图组合**）
+
+**图展示内容**：
+
+**(a) 瀑布图（Waterfall Chart）**：
+- **底座（浅橙）** = RANK Only 的基础名次
+- **红色上升部分** = Save 导致的名次下降（+1）
+- Jerry/Billy/Bristol 都有红色段（被 save 影响）
+- **Bobby Bones 无变化**（#1 从未进 Bottom Two）
+
+**(b) 放射图（Radial Comparison）**：
+- **内圈（淡色粗线）** = RANK Only
+- **外圈（深色粗线）** = RANK+Save
+- 圈层差距 = Save 的影响
+- **视觉：Bristol 和 Jerry 内外圈差最明显**（常进 Bottom Two）
+
+**机制发现**：
+- Save 机制**只对常进 Bottom Two 的选手**有效
+- 对争议选手（judge 低但 fan 高）：常陷入 Bottom Two → 被 save 影响 → 名次 +1
+- 对 Bobby Bones（粉丝压倒性，从不 Bottom Two）：无影响
+- **结论**：Save 轻微抑制 fan-favored 的争议晋级（+1名惩罚），但影响有限
+
+---
+
+### **Step 4: 临界粉丝投票与安全边际（Critical Vote & Safety Margin）**
+
+**做了什么**：
+- 计算每周"使选手**刚好不被淘汰**"所需的**最小 fan share**（临界值 $p^*_{i,t}$）
+- 计算安全边际：$\text{margin}_{i,t}=p_{i,t}-p^*_{i,t}$
+- 对比 RANK vs PERCENT 规则下的临界门槛差异
+- 标注"危险周"（margin < 5%）
+
+**怎么做的**：
+1. 使用**二分搜索算法**（binary search）：
+   - 判定函数：`can_survive(fan_share)` → True（不被淘汰）/ False（被淘汰）
+   - 搜索区间：[0, 1]，精度：0.01%
+   - 迭代至收敛
+2. 分别对 RANK 和 PERCENT 规则计算 $p^*$
+3. margin = actual - critical（负值 = 理论上应被淘汰）
+
+**生成的图表**：`Step4_critical_vote_analysis.png`（**4子图详细分析**，以 Jerry Rice 和 Bristol Palin 为例）
+
+**图展示内容**：
+
+**(a) Jerry Rice: Actual vs Critical Vote**：
+- **红色粗线** = 实际 fan share（逐周上升：12% → 32%）
+- **橙色虚线** = RANK 临界线（门槛：8% → 20%）
+- **紫色虚线** = PERCENT 临界线（门槛：10% → 25%，始终更高）
+- **绿色填充 = 安全区**（实际 > 临界）
+- **黄色标注**：Week 5 最危险（margin 3.0%，最接近临界）
+
+**(b) Jerry Rice: Safety Margin by Week**：
+- **橙色条 = RANK margin**（Week 1-4: 2-4% 危险区；Week 7-8: 7-12% 安全）
+- **粉色条 = PERCENT margin**（普遍更小，Week 4-7 只有 1-3%）
+- **红色虚线 = 5% 危险阈值**
+- **标注危险周数值**（<5%的周用红色字体）
+
+**(c) Bristol Palin: Actual vs Critical Vote**：
+- 更极端：**9周中7周 margin <5%**（几乎全程"走钢丝"）
+- **黄色标注**：Week 2 margin 只有 2%（最危险）
+
+**(d) Bristol Palin: Safety Margin**：
+- 多数周**只有 1-3% margin**（橙色和粉色条都很短）
+- PERCENT 下更极端：Week 2 只有 **0.5% margin**
+- **解释了为什么她是最大争议**：每周都在淘汰边缘，任何波动都可能改变结果
+
+**机制发现**：
+- **普遍规律**：$p^*_{\text{percent}} > p^*_{\text{rank}}$（PERCENT 对 fan 支持要求更高）
+- **Jerry Rice**: RANK 平均需 15%，PERCENT 需 18%（+3%）
+- **Bristol Palin**: RANK 需 21%，PERCENT 需 23%（+2%）
+- **稳健性评估**：margin 越小，结论对 fan vote 估计误差越敏感
+
+---
+
+### **综合仪表盘（Comprehensive Dashboard）**
+
+**生成的图表**：`Comprehensive_dashboard.png`
+
+**图展示内容**（6个可视化元素 + 总结文本）：
+
+**(a) 气泡散点图（Bubble Chart）**：
+- x轴 = RANK 名次，y轴 = PERCENT 名次
+- **气泡大小 = 争议强度**（Bristol 气泡最大）
+- **所有气泡在对角线上方** → PERCENT 一致性地更不利
+- 对角线距离 = 名次变化幅度
+
+**(b) 汇总表格**：
+- 三种规则下的最终名次 + 变化量
+- **Δ(P-R) 列全是 +2**（PERCENT 比 RANK 名次差2位）
+- Δ(Save-R) 列为 +1 或 0（Save 影响有限）
+
+**(c)-(e) 三个水平条形图**：
+- 分别展示 RANK / PERCENT / RANK+Save 下的名次
+- **配色与案例绑定**（保持一致性）
+- 直观对比条长：PERCENT 列所有条都更短（名次更差）
+
+**(f) 甜甜圈图（Donut Chart）**：
+- 全数据集（361人）争议类型分布
+- fan-favored: 116人（32.2%）
+- neutral: 137人（38.1%）
+- judge-favored: 107人（29.7%）
+
+**(g) 关键发现文本框**：
+
+
+
+
+**图表创新点**：
+- ✓ Bump Chart 使用 **spline 插值**平滑曲线（专业级）
+- ✓ Waterfall Chart 展示**增量变化**（财务分析风格）
+- ✓ Radial Chart **放射状**布局（空间利用高）
+- ✓ Dashboard **6元素复杂布局**（GridSpec）+ 甜甜圈图 + 文本框
+- ✓ 所有图表**配色统一**（案例绑定色：红/蓝/绿/紫）
+
+---
+
+### 🔬 技术实现要点
+
+- **排序距离**：Kendall-$\tau$ 与 Spearman footrule
+- **Tie 处理**：mid-rank（并列者取平均名次）
+- **临界值算法**：二分搜索（收敛精度 0.01%，通常 12-15 次迭代）
+- **数据源**：fan_vote_shares.csv（Task 1 输出）+ 原始 judge scores
+- **可视化库**：matplotlib 3.x（借鉴 gallery 最佳实践）
 
