@@ -18,7 +18,7 @@
 3. 计算两规则之间的距离也就是差异度。
 4. 偏向fan的程度也就是FFI。FFI(method)>0是更接近fan,FFI(method)<0是更接近judge,谁的FFI更大就更接近fan。
 
-执行思路：
+### 执行思路：
 1. 对每个赛季、每一周（在当周 active 选手集合上），构造四种排序：
    * $R_{\text{judge}}$：只用评委分数（或评委 percent）得到的排序
    * $R_{\text{fan}}$：只用估计的 fan share 得到的排序
@@ -37,12 +37,7 @@
      * 比较 $\text{FFI}(\text{rank})$ vs $\text{FFI}(\text{percent})$，谁更大谁更偏向 fan。
 
 
-执行结果：
----
-
-## 第二大问第一小问 - 实现完成总结
-
-### ✅ 已完成内容
+### ✅ 执行结果：
 
 **1. 数据准备：Fan Vote Shares 数据表**
 - **文件**：`fan_vote_shares.csv`（2779条记录）
@@ -72,7 +67,7 @@
 | `Task2_1_FFI_heatmap.png` | 热力图 | FFI 跨 Week×Season 分布 | PERCENT 绿色（正FFI）区域更广 |
 | `Task2_1_season_summary.png` | 4子图综合 | (a)FFI趋势 (b)距离 (c)一致率 (d)FFI分布 | 全面展示时间趋势和统计分布 |
 
-### 📊 核心数据发现
+ 📊 核心数据发现
 
 **方法差异度（Method Disagreement）**
 - **淘汰一致率**：75.0%（两种方法在 25% 的周次会产生不同的淘汰者）
@@ -89,4 +84,3 @@
 - **RANK 方法相对更平衡**（FFI 接近 0），对 judge 和 fan 的权重较为均衡
 - 这解释了为什么 Season 2（Jerry Rice）和 Season 27（Bobby Bones）的"争议"会发生在不同规则下
 
-### 📁 生成的文件清单
