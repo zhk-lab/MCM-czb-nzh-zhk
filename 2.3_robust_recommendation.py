@@ -60,11 +60,17 @@ def load_analysis_data(base_dir):
     # Task 2.1 results
     ffi_df = pd.read_csv(os.path.join(base_dir, 'dataset', 'fan_vote_shares_analysis.csv'))
     
-    # Task 2.2 controversy identification
-    controversy_df = pd.read_csv(os.path.join(base_dir, 'dataset', 'controversy_identification.csv'))
-    
-    print(f"  - Loaded {len(ffi_df)} week records from Task 2.1")
-    print(f"  - Loaded {len(controversy_df)} contestants from Task 2.2")
+    # Task 2.2 controversy identification (UPDATED: 使用新的完整数据)
+    controversy_csv_path = os.path.join(base_dir, '2.2_figures', 'controversy_all_contestants.csv')
+    if os.path.exists(controversy_csv_path):
+        controversy_df = pd.read_csv(controversy_csv_path)
+        print(f"  - Loaded {len(ffi_df)} week records from Task 2.1")
+        print(f"  - Loaded {len(controversy_df)} contestants from Task 2.2 (UPDATED)")
+    else:
+        # Fallback to old file
+        controversy_df = pd.read_csv(os.path.join(base_dir, 'dataset', 'controversy_identification.csv'))
+        print(f"  - Loaded {len(ffi_df)} week records from Task 2.1")
+        print(f"  - Loaded {len(controversy_df)} contestants from Task 2.2 (OLD VERSION)")
     
     return ffi_df, controversy_df
 
@@ -555,6 +561,18 @@ def generate_robust_recommendations(metrics_df, pareto_set, win_rates):
     print(f"        - OR one contestant has >8 weeks as judge-lowest")
     print(f"    * Benefit: Balances legitimacy + robustness + transparency")
     print(f"              (Only adds complexity when critically needed)")
+    
+    print(f"\n  [UPDATED] Integration with Task 2.2 Findings:")
+    print(f"    Task 2.2 counterfactual simulation (N=105 controversial) shows:")
+    print(f"    - PERCENT has HETEROGENEOUS effects:")
+    print(f"      * fan-favored: -0.17 (slight help) -> preserves engagement")
+    print(f"      * neutral/judge-favored: +2.2~+2.5 (strong suppression)")
+    print(f"    - SAVE: overall effect not significant (p=0.13)")
+    print(f"      * but individual impact can be extreme (+-8 placements)")
+    print(f"\n    => Our hybrid mechanism is SUPPORTED by these findings:")
+    print(f"       1. PERCENT suppresses controversy overall (+0.9, p=0.03)")
+    print(f"       2. But preserves fan engagement for fan-favored cases")
+    print(f"       3. SAVE acts as safety net for extreme events only")
 
 
 # ============================================================
