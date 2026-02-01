@@ -1,0 +1,106 @@
+name,season,controversy_type,weighted_gap,is_specified,placement_rank,placement_percent,placement_save,delta_percent,delta_save
+Jerry Rice,2,neutral,1.375,True,1,4,8,3,7
+Harry Hamlin,3,fan-favored,2.8333333333333335,False,9,9,1,0,-8
+Jerry Springer,3,fan-favored,1.9693877551020407,False,7,5,9,-2,2
+Shanna Moakler,3,judge-favored,2.5,False,10,10,3,0,-7
+Vivica A. Fox,3,judge-favored,2.25,False,8,8,8,0,0
+Willa Ford,3,judge-favored,2.1399999999999997,False,1,7,2,6,1
+Billy Ray Cyrus,4,fan-favored,1.078125,True,8,5,7,-3,-1
+Clyde Drexler,4,fan-favored,3.6399999999999997,False,1,7,8,6,7
+Paulina Porizkova,4,judge-favored,2.625,False,10,10,10,0,0
+Shandi Finnessey,4,neutral,2.388888888888889,False,9,9,1,0,-8
+Albert Reed,5,judge-favored,2.5,False,11,11,11,0,0
+Mark Cuban,5,fan-favored,1.98,False,8,8,9,0,1
+Sabrina Bryan,5,judge-favored,2.111111111111111,False,2,7,3,5,1
+Penn Jillette,6,fan-favored,2.25,False,1,1,2,0,1
+Priscilla Presley,6,neutral,2.82,False,8,8,8,0,0
+Steve Guttenberg,6,fan-favored,2.3333333333333335,False,10,10,10,0,0
+Misty May-Treanor,7,judge-favored,3.75,False,3,1,2,-2,-1
+Denise Richards,8,judge-favored,2.722222222222222,False,11,1,1,-10,-10
+Steve Wozniak,8,fan-favored,5.375,False,10,10,10,0,0
+Debi Mazar,9,neutral,2.777777777777778,False,14,14,5,0,-9
+Michael Irvin,9,fan-favored,3.204081632653061,False,6,10,6,4,0
+Natalie Coughlin,9,judge-favored,2.2399999999999998,False,12,12,12,0,0
+Buzz Aldrin,10,fan-favored,3.111111111111111,False,11,9,11,-2,0
+Kate Gosselin,10,fan-favored,2.4799999999999995,False,10,7,10,-3,0
+Nicole Scherzinger,10,judge-favored,1.955,False,3,3,2,0,-1
+Shannen Doherty,10,judge-favored,2.75,False,2,10,1,8,-1
+Bristol Palin,11,fan-favored,1.515,True,7,2,7,-5,0
+Chynna Phillips,13,judge-favored,2.6875,False,2,9,1,7,-1
+Elisabetta Canalis,13,neutral,3.75,False,3,11,2,8,-1
+Kristin Cavallari,13,judge-favored,2.7222222222222228,False,10,10,4,0,-6
+Gavin DeGraw,14,fan-favored,2.52,False,12,8,12,-4,0
+Jack Wagner,14,neutral,2.0555555555555554,False,10,10,10,0,0
+Martina Navratilova,14,fan-favored,2.25,False,11,11,11,0,0
+Bristol Palin,15,fan-favored,3.0,False,10,10,10,0,0
+Helio Castroneves,15,judge-favored,3.611111111111111,False,1,1,1,0,0
+Joey Fatone,15,neutral,2.5,False,2,12,2,10,0
+Sabrina Bryan,15,judge-favored,1.986111111111111,False,4,8,3,4,-1
+Dorothy Hamill,16,fan-favored,5.75,False,2,1,2,-1,0
+Victor Ortiz,16,fan-favored,2.138888888888889,False,7,7,7,0,0
+Christina Milian,17,judge-favored,2.98,False,2,12,2,10,0
+Valerie Harper,17,fan-favored,2.3125,False,10,9,10,-1,0
+Billy Dee Williams,18,fan-favored,5.5,False,3,2,3,-1,0
+Candace Cameron Bure,18,fan-favored,2.0,False,8,8,8,0,0
+Sean Avery,18,fan-favored,3.5,False,11,11,11,0,0
+Betsey Johnson,19,fan-favored,2.03125,False,10,10,10,0,0
+Jonathan Bennett,19,neutral,2.0555555555555554,False,9,9,9,0,0
+Michael Waltrip,19,fan-favored,2.0859375,False,7,7,12,0,5
+Tavis Smiley,19,judge-favored,2.375,False,12,12,2,0,-10
+Charlotte McKinney,20,fan-favored,2.2222222222222223,False,12,12,12,0,0
+Michael Sam,20,neutral,2.0,False,9,9,9,0,0
+Redfoo,20,fan-favored,5.875,False,1,11,2,10,1
+Chaka Khan,21,fan-favored,4.25,False,2,12,3,10,1
+Hayes Grier,21,fan-favored,1.9489795918367345,False,8,7,8,-1,0
+Kim Zolciak-Biermann,21,fan-favored,3.0,False,12,1,1,-11,-11
+Paula Deen,21,fan-favored,2.555555555555556,False,10,8,11,-2,1
+Doug Flutie,22,fan-favored,2.263888888888889,False,10,7,7,-3,-3
+Jodie Sweetin,22,neutral,2.484375,False,6,12,6,6,0
+Mischa Barton,22,fan-favored,5.4444444444444455,False,2,10,10,8,8
+Babyface,23,fan-favored,3.53125,False,10,10,10,0,0
+Jake T. Austin,23,fan-favored,2.625,False,12,12,12,0,0
+Rick Perry,23,fan-favored,2.611111111111111,False,13,11,13,-2,0
+Vanilla Ice,23,fan-favored,1.9375,False,2,1,2,-1,0
+Bonner Bolton,24,fan-favored,2.328125,False,5,5,6,0,1
+Heather Morris,24,judge-favored,2.694444444444444,False,2,7,3,5,1
+Debbie Gibson,25,judge-favored,3.5,False,3,13,4,10,1
+Derek Fisher,25,fan-favored,2.1875,False,10,11,10,1,0
+Nick Lachey,25,fan-favored,2.2222222222222223,False,12,8,12,-4,0
+Vanessa Lachey,25,neutral,2.377551020408163,False,1,1,1,0,0
+Arike Ogunbowale,26,judge-favored,2.75,False,2,9,2,7,0
+Bobby Bones,27,fan-favored,1.3641975308641976,True,10,6,10,-4,0
+Danelle Umstead,27,fan-favored,2.25,False,12,12,3,0,-9
+Joe Amabile,27,fan-favored,2.109375,False,9,9,12,0,3
+Mary Lou Retton,27,judge-favored,2.0,False,1,8,8,7,7
+Tinashe,27,judge-favored,3.28125,False,4,10,4,6,0
+Karamo Brown,28,fan-favored,2.3367346938775504,False,6,6,6,0,0
+Mary Wilson,28,judge-favored,2.125,False,11,11,11,0,0
+Ray Lewis,28,fan-favored,2.375,False,1,1,1,0,0
+Sailor Brinkley-Cook,28,neutral,2.138888888888889,False,3,7,3,4,0
+Chrishell Stause,29,fan-favored,2.2421875,False,8,8,8,0,0
+Jeannie Mai,29,fan-favored,2.122448979591837,False,2,2,11,0,9
+Nelly,29,fan-favored,2.004132231404959,False,13,5,6,-8,-7
+Nev Schulman,29,judge-favored,2.322314049586777,False,5,6,5,1,0
+Brian Austin Green,30,fan-favored,3.8125,False,12,12,12,0,0
+Christine Chiu,30,judge-favored,2.722222222222222,False,13,4,13,-9,0
+Melanie C,30,judge-favored,2.2600000000000002,False,11,11,5,0,-6
+"Mike ""The Miz"" Mizanin",30,neutral,1.9285714285714284,False,9,13,9,4,0
+Olivia Jade,30,judge-favored,2.1328125,False,3,8,3,5,0
+Cheryl Ladd,31,fan-favored,2.1666666666666665,False,14,14,15,0,1
+Jessie James Decker,31,fan-favored,2.7083333333333335,False,11,2,11,-9,0
+Selma Blair,31,judge-favored,3.16,False,4,12,4,8,0
+Teresa Giudice,31,fan-favored,2.75,False,15,15,5,0,-10
+Vinny Guadagnino,31,fan-favored,2.546875,False,5,11,10,6,5
+Adrian Peterson,32,fan-favored,3.09375,False,1,1,1,0,0
+Jamie Lynn Spears,32,judge-favored,2.625,False,13,13,3,0,-10
+Tyson Beckford,32,fan-favored,2.111111111111111,False,12,12,12,0,0
+Brooks Nader,33,fan-favored,2.125,False,10,10,10,0,0
+Jenn Tran,33,fan-favored,2.069444444444444,False,3,3,3,0,0
+Reginald VelJohnson,33,fan-favored,2.5555555555555554,False,11,11,11,0,0
+Tori Spelling,33,neutral,2.25,False,12,12,1,0,-11
+Andy Richter,34,fan-favored,2.135802469135802,False,14,14,14,0,0
+Corey Feldman,34,fan-favored,3.625,False,1,13,13,12,12
+Danielle Fishel,34,fan-favored,2.03125,False,8,8,8,0,0
+Hilaria Baldwin,34,judge-favored,2.4375,False,11,11,2,0,-9
+Lauren Jauregui,34,judge-favored,2.3333333333333335,False,12,12,12,0,0
+Whitney Leavitt,34,judge-favored,2.4400000000000004,False,3,5,5,2,2
