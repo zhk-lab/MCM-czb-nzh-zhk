@@ -884,170 +884,203 @@ def plot_metric_radar(metrics_df, save_dir):
 
 
 def create_recommendation_summary_plot(metrics_df, pareto_set, win_rates, save_dir):
-    """创建推荐总结图 - 使用信息图表风格"""
-    fig = plt.figure(figsize=(18, 11), facecolor='white')
+    """创建推荐总结图 - 简洁信息图表风格（无 framework 文本框）"""
+    fig = plt.figure(figsize=(16, 10), facecolor='white')
     
     from matplotlib.gridspec import GridSpec
-    gs = GridSpec(3, 2, figure=fig, hspace=0.4, wspace=0.3,
-                  left=0.08, right=0.95, top=0.93, bottom=0.05)
+    gs = GridSpec(2, 3, figure=fig, hspace=0.35, wspace=0.30,
+                  left=0.07, right=0.96, top=0.90, bottom=0.08,
+                  height_ratios=[1.2, 1])
     
-    # (1) 左上：度量对比热力图
+    methods = list(metrics_df.index)
+    categories = list(metrics_df.columns)
+    colors_map = {'RANK': COLORS['rank'], 'PERCENT': COLORS['percent'], 'SAVE': COLORS['save']}
+    
+    # =============================================
+    # (a) 左上：度量对比热力图
+    # =============================================
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.set_facecolor(COLORS['bg'])
     
     data_matrix = metrics_df.values
-    methods = list(metrics_df.index)
-    categories = list(metrics_df.columns)
     
-    # 使用柔和的colormap
+    # 使用柔和蓝绿色系 colormap
     im = ax1.imshow(data_matrix, cmap='YlGnBu', aspect='auto', 
-                   vmin=0, vmax=1, alpha=0.8)
+                   vmin=0, vmax=1, alpha=0.85)
     
     # 添加数值
     for i in range(len(methods)):
         for j in range(len(categories)):
-            text = ax1.text(j, i, f'{data_matrix[i, j]:.3f}',
-                          ha="center", va="center", color="black",
-                          fontsize=11, fontweight='bold')
+            val = data_matrix[i, j]
+            text_color = 'white' if val > 0.6 else 'black'
+            ax1.text(j, i, f'{val:.3f}',
+                    ha="center", va="center", color=text_color,
+                    fontsize=11, fontweight='bold')
     
     ax1.set_xticks(np.arange(len(categories)))
     ax1.set_yticks(np.arange(len(methods)))
-    ax1.set_xticklabels(categories, fontsize=11, fontweight='bold', rotation=15, ha='right')
+    ax1.set_xticklabels(categories, fontsize=10, fontweight='bold', rotation=20, ha='right')
     ax1.set_yticklabels(methods, fontsize=12, fontweight='bold')
-    ax1.set_title('(a) Metric Heatmap', fontsize=14, fontweight='bold', pad=12)
+    ax1.set_title('(a) Metric Heatmap', fontsize=13, fontweight='bold', pad=10)
     
-    # 添加colorbar
+    # colorbar
     cbar = plt.colorbar(im, ax=ax1, fraction=0.046, pad=0.04)
-    cbar.set_label('Performance', rotation=270, labelpad=20, fontsize=11, fontweight='bold')
+    cbar.set_label('Performance', rotation=270, labelpad=18, fontsize=10, fontweight='bold')
     
-    # (2) 右上：Pareto集合
+    # =============================================
+    # (b) 中上：Pareto 分析卡片
+    # =============================================
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.axis('off')
+    ax2.set_facecolor(COLORS['bg'])
     
-    pareto_text = "PARETO FRONTIER\n\n"
-    pareto_text += f"Efficient Set: {', '.join(pareto_set)}\n\n"
     dominated_set = [m for m in methods if m not in pareto_set]
-    if dominated_set:
-        pareto_text += f"Dominated: {', '.join(dominated_set)}\n\n"
     
-    pareto_text += "\nInterpretation:\n"
-    pareto_text += "Methods in Pareto frontier are\n"
-    pareto_text += "optimal under some preference.\n"
-    pareto_text += "Dominated methods are never optimal."
+    # 卡片背景
+    card_rect = mpatches.FancyBboxPatch(
+        (0.05, 0.1), 0.9, 0.8,
+        boxstyle="round,pad=0.03,rounding_size=0.05",
+        facecolor=COLORS['accent3'], edgecolor=COLORS['pareto'],
+        linewidth=3, alpha=0.9, transform=ax2.transAxes, zorder=1
+    )
+    ax2.add_patch(card_rect)
     
-    ax2.text(0.5, 0.5, pareto_text, transform=ax2.transAxes,
-            ha='center', va='center', fontsize=12, fontweight='bold',
-            bbox=dict(boxstyle='round,pad=1.2', facecolor=COLORS['accent3'],
-                     edgecolor=COLORS['pareto'], linewidth=3, alpha=0.85))
+    # 卡片内容
+    ax2.text(0.5, 0.78, 'PARETO FRONTIER', transform=ax2.transAxes,
+            ha='center', va='center', fontsize=14, fontweight='bold', 
+            color=COLORS['pareto'], zorder=2)
     
-    ax2.set_title('(b) Pareto Analysis', fontsize=14, fontweight='bold')
+    ax2.text(0.5, 0.58, f"Efficient Set: {', '.join(pareto_set)}", 
+            transform=ax2.transAxes, ha='center', va='center', 
+            fontsize=11, fontweight='bold', color='#333333', zorder=2)
     
-    # (3) 中间：文本总结
-    ax3 = fig.add_subplot(gs[1, :])
-    ax3.axis('off')
+    interpretation = "Interpretation:\nMethods in Pareto frontier are\noptimal under some preference.\nDominated methods are never optimal."
+    ax2.text(0.5, 0.32, interpretation, transform=ax2.transAxes,
+            ha='center', va='center', fontsize=9, color='#555555', 
+            style='italic', zorder=2)
     
-    summary_text = f"""
-+===============================================================================+
-|                    ROBUST RECOMMENDATION FRAMEWORK                            |
-|                   (Multi-Objective Decision Analysis)                         |
-+===============================================================================+
-
-+-- STEP 1: Acknowledge Uncertainty ---------------------------------------+
-|                                                                               |
-|  > Producer preferences are MULTI-OBJECTIVE (not single-weighted)            |
-|  > We do NOT assume a fixed weight vector w                                  |
-|  > Instead, we analyze the PREFERENCE SPACE systematically                   |
-|                                                                               |
-+-------------------------------------------------------------------------------+
-
-+-- STEP 2: Weight-Agnostic Results (Pareto Analysis) ---------------------+
-|                                                                               |
-|  Pareto Frontier: {', '.join(pareto_set)}
-|  Dominated Methods: {', '.join([m for m in metrics_df.index if m not in pareto_set]) or 'None'}
-|                                                                               |
-|  -> Conclusion: {'All methods are viable under some preference' if len(pareto_set) == len(metrics_df) else f'{pareto_set[0]} universally dominates'}
-|                                                                               |
-+-------------------------------------------------------------------------------+
-
-+-- STEP 3: Conditional Recommendations (Weight Sensitivity) ---------------+
-|                                                                               |
-|  Win Rates across Random Preference Space:                                   |
-|    * RANK:    {win_rates.get('RANK', 0):5.1f}%  {'#' * int(win_rates.get('RANK', 0)/5)}
-|    * PERCENT: {win_rates.get('PERCENT', 0):5.1f}%  {'#' * int(win_rates.get('PERCENT', 0)/5)}
-|    * SAVE:    {win_rates.get('SAVE', 0):5.1f}%  {'#' * int(win_rates.get('SAVE', 0)/5)}
-|                                                                               |
-|  IF Legitimacy > Engagement   -> Recommend: PERCENT                           |
-|  IF Engagement > Legitimacy   -> Recommend: RANK                              |
-|  IF Balanced + Risk-Averse    -> Recommend: RANK + Triggered Save             |
-|                                                                               |
-+-------------------------------------------------------------------------------+
-
-+-- STEP 4: Robust Recommendation (Constraint + Tail Risk) -----------------+
-|                                                                               |
-|  PRIMARY RECOMMENDATION: PERCENT Method                                       |
-|                                                                               |
-|  Reasoning:                                                                   |
-|    > Highest Legitimacy ({metrics_df.loc['PERCENT', 'legitimacy']:.3f}) - avoids "Bobby Bones incidents"      |
-|    > Moderate Engagement ({metrics_df.loc['PERCENT', 'engagement']:.3f}) - still allows meaningful fan input  |
-|    > High Robustness ({metrics_df.loc['PERCENT', 'robustness']:.3f}) - stable under uncertainty              |
-|    > Simple & Transparent - no additional mechanisms needed                  |
-|                                                                               |
-|  OPTIONAL ADD-ON: Triggered Judges Save                                      |
-|    * Activate ONLY when Bottom-Two margin < 5%                               |
-|    * Acts as "circuit breaker" for extreme uncertainty cases                 |
-|    * Preserves legitimacy without sacrificing normal-week engagement         |
-|                                                                               |
-+-------------------------------------------------------------------------------+
-
-+-- KEY INSIGHT: Why This Recommendation is Robust -------------------------+
-|                                                                               |
-|  Unlike a single-weight optimization, our recommendation:                    |
-|    1. Survives across MOST reasonable preference weights                     |
-|    2. Satisfies HARD CONSTRAINTS (legitimacy floor) from problem statement   |
-|    3. Balances MULTIPLE objectives without extreme trade-offs                |
-|    4. Aligns with HISTORICAL pattern (S27 controversy -> rule change)         |
-|                                                                               |
-|  This is NOT "our subjective opinion" - it's a ROBUST conclusion that        |
-|  holds under systematic analysis of the preference space.                    |
-|                                                                               |
-+-------------------------------------------------------------------------------+
-"""
+    ax2.set_title('(b) Pareto Analysis', fontsize=13, fontweight='bold', pad=10)
     
-    ax3.text(0.05, 0.95, summary_text, transform=ax3.transAxes,
-            fontsize=9.5, verticalalignment='top', family='monospace',
-            bbox=dict(boxstyle='round,pad=1.5', facecolor=COLORS['accent2'],
-                     edgecolor='gray', linewidth=2, alpha=0.9))
+    # =============================================
+    # (c) 右上：雷达图概览
+    # =============================================
+    ax3 = fig.add_subplot(gs[0, 2], projection='polar')
+    ax3.set_facecolor('#FAFAFA')
     
-    ax3.set_title('(c) Recommendation Summary', fontsize=14, fontweight='bold')
+    N = len(categories)
+    angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
+    angles += angles[:1]
     
-    # (4) 底部：胜率可视化（条形图）
-    ax4 = fig.add_subplot(gs[2, :])
+    for method in metrics_df.index:
+        values = metrics_df.loc[method].tolist()
+        values += values[:1]
+        color = colors_map[method]
+        
+        ax3.plot(angles, values, 'o-', linewidth=2.5, color=color,
+                markersize=7, label=method, alpha=0.85,
+                markeredgecolor='white', markeredgewidth=1.5)
+        ax3.fill(angles, values, alpha=0.12, color=color)
+    
+    ax3.set_xticks(angles[:-1])
+    ax3.set_xticklabels(categories, fontsize=9, fontweight='bold')
+    ax3.set_ylim(0, 1.05)
+    ax3.set_yticks([0.25, 0.5, 0.75, 1.0])
+    ax3.set_yticklabels(['25%', '50%', '75%', '100%'], fontsize=8, color='gray')
+    ax3.grid(True, linestyle='--', alpha=0.4, linewidth=1)
+    ax3.legend(loc='upper right', bbox_to_anchor=(1.35, 1.15), fontsize=9, 
+              framealpha=0.9, edgecolor='gray')
+    ax3.set_title('(c) 4D Performance Radar', fontsize=13, fontweight='bold', pad=15)
+    
+    # =============================================
+    # (d) 左下：胜率条形图
+    # =============================================
+    ax4 = fig.add_subplot(gs[1, 0:2])
     ax4.set_facecolor(COLORS['bg'])
     
     methods_sorted = sorted(win_rates.keys(), key=lambda m: -win_rates[m])
     rates_sorted = [win_rates[m] for m in methods_sorted]
-    colors_map = {'RANK': COLORS['rank'], 'PERCENT': COLORS['percent'], 'SAVE': COLORS['save']}
     colors_sorted = [colors_map[m] for m in methods_sorted]
     
-    bars = ax4.bar(methods_sorted, rates_sorted, color=colors_sorted,
-                  alpha=0.8, edgecolor='white', linewidth=3, width=0.6)
+    y_pos = np.arange(len(methods_sorted))
+    
+    # 水平条形图
+    bars = ax4.barh(y_pos, rates_sorted, color=colors_sorted,
+                   alpha=0.85, edgecolor='white', linewidth=2.5, height=0.55)
     
     # 添加数值标签
-    for bar, rate in zip(bars, rates_sorted):
-        height = bar.get_height()
-        ax4.text(bar.get_x() + bar.get_width()/2, height + 1.5,
-                f'{rate:.1f}%', ha='center', va='bottom',
-                fontsize=13, fontweight='bold')
+    for i, (bar, rate, method) in enumerate(zip(bars, rates_sorted, methods_sorted)):
+        width = bar.get_width()
+        # 条形内文字
+        ax4.text(width - 3, i, f'{rate:.1f}%', ha='right', va='center',
+                fontsize=14, fontweight='bold', color='white')
     
-    ax4.set_ylabel('Win Rate (%)', fontsize=13, fontweight='bold')
-    ax4.set_title('(d) Weight Space Win Rates', fontsize=14, fontweight='bold', pad=12)
-    ax4.set_ylim(0, max(rates_sorted) * 1.15)
+    ax4.set_yticks(y_pos)
+    ax4.set_yticklabels(methods_sorted, fontsize=13, fontweight='bold')
+    ax4.set_xlabel('Win Rate (% of Weight Space)', fontsize=12, fontweight='bold')
+    ax4.set_title('(d) Weight Space Win Rates (5000 samples)', fontsize=13, fontweight='bold', pad=10)
+    ax4.set_xlim(0, 75)
     ax4.spines['top'].set_visible(False)
     ax4.spines['right'].set_visible(False)
-    ax4.grid(axis='y', alpha=0.25, linestyle=':', linewidth=1.5)
+    ax4.spines['left'].set_visible(False)
+    ax4.tick_params(left=False)
+    ax4.grid(axis='x', alpha=0.3, linestyle=':', linewidth=1.2)
     
-    plt.suptitle('Robust Recommendation Framework: Complete Analysis Dashboard', 
-                fontsize=17, fontweight='bold', y=0.97)
+    # =============================================
+    # (e) 右下：推荐卡片
+    # =============================================
+    ax5 = fig.add_subplot(gs[1, 2])
+    ax5.axis('off')
+    ax5.set_facecolor(COLORS['bg'])
+    
+    # 主推荐卡片
+    main_card = mpatches.FancyBboxPatch(
+        (0.02, 0.35), 0.96, 0.60,
+        boxstyle="round,pad=0.03,rounding_size=0.05",
+        facecolor=COLORS['percent'], edgecolor='white',
+        linewidth=3, alpha=0.9, transform=ax5.transAxes, zorder=1
+    )
+    ax5.add_patch(main_card)
+    
+    ax5.text(0.5, 0.82, 'PRIMARY', transform=ax5.transAxes,
+            ha='center', va='center', fontsize=10, fontweight='bold', 
+            color='white', alpha=0.8, zorder=2)
+    ax5.text(0.5, 0.68, 'PERCENT', transform=ax5.transAxes,
+            ha='center', va='center', fontsize=18, fontweight='bold', 
+            color='white', zorder=2)
+    
+    # 关键指标
+    leg_val = metrics_df.loc['PERCENT', 'legitimacy']
+    eng_val = metrics_df.loc['PERCENT', 'engagement']
+    rob_val = metrics_df.loc['PERCENT', 'robustness']
+    
+    metrics_text = f"Legitimacy: {leg_val:.2f}\nEngagement: {eng_val:.2f}\nRobustness: {rob_val:.2f}"
+    ax5.text(0.5, 0.48, metrics_text, transform=ax5.transAxes,
+            ha='center', va='center', fontsize=10, fontweight='bold', 
+            color='white', zorder=2, linespacing=1.4)
+    
+    # 次要推荐
+    sub_card = mpatches.FancyBboxPatch(
+        (0.02, 0.02), 0.96, 0.28,
+        boxstyle="round,pad=0.03,rounding_size=0.05",
+        facecolor=COLORS['save'], edgecolor='white',
+        linewidth=2, alpha=0.85, transform=ax5.transAxes, zorder=1
+    )
+    ax5.add_patch(sub_card)
+    
+    ax5.text(0.5, 0.22, 'OPTIONAL: Triggered Save', transform=ax5.transAxes,
+            ha='center', va='center', fontsize=10, fontweight='bold', 
+            color='white', zorder=2)
+    ax5.text(0.5, 0.08, 'When margin < 5%', transform=ax5.transAxes,
+            ha='center', va='center', fontsize=9, 
+            color='white', alpha=0.9, zorder=2)
+    
+    ax5.set_title('(e) Recommendation', fontsize=13, fontweight='bold', pad=10)
+    
+    # =============================================
+    # 总标题
+    # =============================================
+    plt.suptitle('Robust Recommendation Summary: Multi-Objective Analysis', 
+                fontsize=16, fontweight='bold', y=0.96)
     
     plt.savefig(f'{save_dir}/Task2_3_recommendation_summary.png', dpi=300, facecolor='white')
     plt.close()
