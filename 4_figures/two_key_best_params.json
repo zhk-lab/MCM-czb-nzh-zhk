@@ -1,0 +1,14 @@
+{
+  "params": {
+    "alpha": 0.4,
+    "beta": 0.6,
+    "ban_consecutive_weeks": 2
+  },
+  "metrics": {
+    "legitimacy": 0.5373573491498019,
+    "engagement": 0.8060312329180253,
+    "robustness": 0.937,
+    "transparency": 0.65
+  },
+  "score": 0.9445965786205408
+}

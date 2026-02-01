@@ -139,12 +139,20 @@ def get_dynamic_k(n_contestants):
         return min(2, n_contestants), min(2, n_contestants)
 
 
-def compute_risk_score(contestant, week_data, bottom_judge, bottom_fan):
+def compute_risk_score(contestant, week_data, bottom_judge, bottom_fan, params=None):
     """
-    计算极端优先风险分：R_i = max(p_J, p_F) + 0.3 * min(p_J, p_F)
+    计算极端优先风险分：R_i = max(p_J, p_F) + alpha * min(p_J, p_F)
     
     p 为归一化差分位（0=最好，1=最差）
+    
+    Parameters:
+    -----------
+    params : dict, optional
+        {'alpha': 风险分系数, 'beta': 双钥匙区 bonus}
     """
+    if params is None:
+        params = {'alpha': 0.3, 'beta': 0.5}
+    
     n = len(week_data)
     
     # 获取该选手在两个维度的排名（1=最好）
@@ -155,24 +163,32 @@ def compute_risk_score(contestant, week_data, bottom_judge, bottom_fan):
     p_J = (judge_rank - 1) / (n - 1) if n > 1 else 0
     p_F = (fan_rank - 1) / (n - 1) if n > 1 else 0
     
-    # 极端优先风险分
-    risk = max(p_J, p_F) + 0.3 * min(p_J, p_F)
+    # 极端优先风险分（参数化）
+    risk = max(p_J, p_F) + params['alpha'] * min(p_J, p_F)
     
-    # 双钥匙成员额外风险
+    # 双钥匙成员额外风险（参数化）
     if contestant in bottom_judge and contestant in bottom_fan:
-        risk += 0.5  # 优先级提升
+        risk += params['beta']
     
     return risk
 
 
-def select_bottom_3(season, week, panel, history_df=None):
+def select_bottom_3(season, week, panel, history_df=None, params=None):
     """
     Step C: 提名 Bottom-3（修复温吞水漏洞）
+    
+    Parameters:
+    -----------
+    params : dict, optional
+        {'alpha', 'beta', 'k_table': ...}
     
     Returns:
     --------
     list of 3 contestant names
     """
+    if params is None:
+        params = {'alpha': 0.3, 'beta': 0.5, 'k_table': None}
+    
     week_data = panel[(panel['season'] == season) & (panel['week'] == week)].copy()
     
     if len(week_data) < 3:
@@ -180,7 +196,12 @@ def select_bottom_3(season, week, panel, history_df=None):
         return list(week_data['celebrity_name'].values)
     
     n = len(week_data)
-    k_J, k_F = get_dynamic_k(n)
+    
+    # 使用参数化的 k 表（如果提供）
+    if params.get('k_table') is not None:
+        k_J, k_F = params['k_table'].get(n, get_dynamic_k(n))
+    else:
+        k_J, k_F = get_dynamic_k(n)
     
     # Step B: 获取 Bottom 集合
     bottom_judge = get_bottom_k(season, week, panel, 'judge', k_J)
@@ -214,7 +235,7 @@ def select_bottom_3(season, week, panel, history_df=None):
         # 计算风险分
         risk_scores = {}
         for contestant in remaining:
-            risk_scores[contestant] = compute_risk_score(contestant, week_data, bottom_judge, bottom_fan)
+            risk_scores[contestant] = compute_risk_score(contestant, week_data, bottom_judge, bottom_fan, params)
         
         # 按风险分降序排序
         sorted_by_risk = sorted(risk_scores.items(), key=lambda x: -x[1])
@@ -228,44 +249,60 @@ def select_bottom_3(season, week, panel, history_df=None):
     return bottom_3[:3]
 
 
-def check_save_ban(contestant, season, week, history_df):
+def check_save_ban(contestant, season, week, history_df, params=None):
     """
     检查是否禁止救援（连续两周评委绝对倒数第1）
+    
+    Parameters:
+    -----------
+    params : dict, optional
+        {'ban_consecutive_weeks': 连续最差周数阈值}
     """
-    if history_df is None or week < 2:
+    if params is None:
+        params = {'ban_consecutive_weeks': 2}
+    
+    if history_df is None or week < params['ban_consecutive_weeks']:
         return False
     
-    # 检查上周是否也是评委倒数第1
-    prev_week_data = history_df[(history_df['season'] == season) & (history_df['week'] == week - 1)]
-    
-    if len(prev_week_data) == 0:
-        return False
-    
-    # 上周评委最低分者
-    prev_judge_worst = prev_week_data.nsmallest(1, 'judge_share')['celebrity_name'].values
-    
-    if len(prev_judge_worst) > 0 and prev_judge_worst[0] == contestant:
-        # 检查本周是否也是倒数第1
-        curr_week_data = history_df[(history_df['season'] == season) & (history_df['week'] == week)]
-        curr_judge_worst = curr_week_data.nsmallest(1, 'judge_share')['celebrity_name'].values
+    # 检查前 N 周是否连续都是评委倒数第1
+    for prev_offset in range(1, params['ban_consecutive_weeks'] + 1):
+        prev_week = week - prev_offset
+        if prev_week < 1:
+            return False
         
-        if len(curr_judge_worst) > 0 and curr_judge_worst[0] == contestant:
-            return True
+        prev_week_data = history_df[(history_df['season'] == season) & (history_df['week'] == prev_week)]
+        
+        if len(prev_week_data) == 0:
+            return False
+        
+        prev_judge_worst = prev_week_data.nsmallest(1, 'judge_share')['celebrity_name'].values
+        
+        if len(prev_judge_worst) == 0 or prev_judge_worst[0] != contestant:
+            return False
     
-    return False
+    # 如果连续 N 周都是倒数第1，禁止救援
+    return True
 
 
-def live_save_simulation(bottom_3, season, week, panel, history_df, seed=42):
+def live_save_simulation(bottom_3, season, week, panel, history_df, seed=42, params=None):
     """
     Step D: 直播救援（修复 Jerry Rice 漏洞）
     
     模拟直播窗口新增票，救 ΔV 最高者
-    禁止连续两周评委倒数第1者被救援
+    禁止连续 N 周评委倒数第1者被救援
+    
+    Parameters:
+    -----------
+    params : dict, optional
+        参数集合
     
     Returns:
     --------
     saved_contestant : str or None
     """
+    if params is None:
+        params = {'ban_consecutive_weeks': 2}
+    
     week_data = panel[(panel['season'] == season) & (panel['week'] == week)]
     
     np.random.seed(seed + season * 100 + week)
@@ -273,7 +310,7 @@ def live_save_simulation(bottom_3, season, week, panel, history_df, seed=42):
     # 检查禁止救援条款
     ban_list = []
     for contestant in bottom_3:
-        if check_save_ban(contestant, season, week, history_df):
+        if check_save_ban(contestant, season, week, history_df, params):
             ban_list.append(contestant)
     
     eligible = [c for c in bottom_3 if c not in ban_list]
@@ -338,9 +375,14 @@ def judges_eliminate(bottom_3, saved, season, week, panel, history_df):
     return eliminated
 
 
-def simulate_two_key_week(season, week, panel, history_df, seed=42):
+def simulate_two_key_week(season, week, panel, history_df, seed=42, params=None):
     """
     模拟 Two-Key 系统的单周淘汰流程
+    
+    Parameters:
+    -----------
+    params : dict, optional
+        参数集合（传递给各子函数）
     
     Returns:
     --------
@@ -353,10 +395,10 @@ def simulate_two_key_week(season, week, panel, history_df, seed=42):
         return {'bottom_3': [], 'saved': None, 'eliminated': None}
     
     # Step C: 提名 Bottom-3
-    bottom_3 = select_bottom_3(season, week, panel, history_df)
+    bottom_3 = select_bottom_3(season, week, panel, history_df, params)
     
     # Step D: 直播救援
-    saved = live_save_simulation(bottom_3, season, week, panel, history_df, seed)
+    saved = live_save_simulation(bottom_3, season, week, panel, history_df, seed, params)
     
     # Step E: 评委兜底淘汰
     eliminated = judges_eliminate(bottom_3, saved, season, week, panel, history_df)

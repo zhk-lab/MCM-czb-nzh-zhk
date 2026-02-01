@@ -239,14 +239,15 @@ def create_alluvial_fate_paths(panel_df, comparison_df, save_dir):
         ax.set_ylabel('Number of Contestants', fontsize=12, fontweight='bold')
         ax.set_xticks(x)
         ax.set_xticklabels(week_labels, fontsize=10)
-        ax.set_title(f'{title}\n(Season {season} Week-by-Week Flow)', fontsize=13, fontweight='bold', pad=12)
+        ax.set_title(f'{title}\n(Season {season} Week-by-Week Flow)', fontsize=12, fontweight='bold', pad=10)
         ax.legend(loc='upper right', fontsize=10, framealpha=0.9, edgecolor='gray')
         ax.grid(axis='y', alpha=0.3, linestyle=':', linewidth=1)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
         ax.set_ylim(0, max(safe_counts) + max(danger_counts) + 1)
     
-    plt.suptitle('Alluvial Flow: Contestant Fate Evolution Across Weeks', fontsize=15, fontweight='bold', y=0.96)
+    # 去掉大标题避免遮挡
+    # plt.suptitle('Alluvial Flow: Contestant Fate Evolution Across Weeks', fontsize=14, fontweight='bold', y=0.94)
     
     plt.savefig(f'{save_dir}/Task4_alluvial_fate_paths.png', dpi=300, facecolor='white', bbox_inches='tight')
     plt.close()
@@ -355,12 +356,14 @@ def create_chord_bottom_interaction(panel_df, save_dir):
 
 def create_sunburst_decision_tree(two_key_df, save_dir):
     """
-    Sunburst 图：决策层级的嵌套结构
+    Sunburst 图：决策层级的嵌套结构（改进版）
     
-    使用圆环图模拟 Sunburst 效果
+    使用多层饼图展示决策流
     """
-    fig, ax = plt.subplots(figsize=(12, 12), facecolor='white', subplot_kw=dict(projection='polar'))
-    ax.set_facecolor('#FAFBFC')
+    fig, ax = plt.subplots(figsize=(13, 13), facecolor='white')
+    ax.set_facecolor('white')
+    ax.axis('equal')
+    ax.axis('off')
     
     # 统计数据
     total_weeks = len(two_key_df)
@@ -368,46 +371,66 @@ def create_sunburst_decision_tree(two_key_df, save_dir):
     total_saved = sum(two_key_df['saved'] != '')
     total_eliminated = sum(two_key_df['eliminated'] != '')
     
-    # 数据准备
-    categories = ['Safe', 'Danger Pool', 'Bottom-3', 'Saved', 'Eliminated']
-    values = [
-        total_weeks * 8 - total_bottom_3,  # 估算安全人数
-        total_bottom_3 - total_bottom_3,   # 危险池（展示用）
-        total_bottom_3,
-        total_saved,
-        total_eliminated
-    ]
+    # 估算
+    avg_contestants = 6  # 平均每周选手数
+    safe_count = total_weeks * avg_contestants - total_bottom_3 * 3
+    danger_count = total_bottom_3 * 3
     
-    # 颜色
-    colors = [COLORS['safe'], COLORS['single_key'], COLORS['two_key'], 
-              COLORS['saved'], COLORS['eliminated']]
+    # 外圈：初始状态
+    sizes_outer = [safe_count, danger_count]
+    colors_outer = [COLORS['safe'], COLORS['two_key']]
+    labels_outer = ['Safe Zone', 'Danger Pool']
     
-    # 绘制嵌套圆环（模拟 Sunburst）
+    wedges1, texts1, autotexts1 = ax.pie(
+        sizes_outer, labels=labels_outer, colors=colors_outer,
+        autopct='%1.0f%%', startangle=90, radius=1.0,
+        wedgeprops=dict(width=0.25, edgecolor='white', linewidth=3),
+        textprops={'fontsize': 12, 'fontweight': 'bold'},
+        pctdistance=0.85
+    )
+    
+    for autotext in autotexts1:
+        autotext.set_color('white')
+        autotext.set_fontsize(11)
+        autotext.set_fontweight('bold')
+    
+    # 中圈：Bottom-3 处理
+    sizes_mid = [total_saved, total_eliminated]
+    colors_mid = [COLORS['saved'], COLORS['eliminated']]
+    labels_mid = ['Live Saved', 'Judges Eliminated']
+    
+    wedges2, texts2, autotexts2 = ax.pie(
+        sizes_mid, labels=labels_mid, colors=colors_mid,
+        autopct='%1.0f%%', startangle=90, radius=0.75,
+        wedgeprops=dict(width=0.25, edgecolor='white', linewidth=3),
+        textprops={'fontsize': 11, 'fontweight': 'bold'},
+        pctdistance=0.75
+    )
+    
+    for autotext in autotexts2:
+        autotext.set_color('white')
+        autotext.set_fontsize(10)
+        autotext.set_fontweight('bold')
+    
     # 内圈：总体
-    wedges1, texts1 = ax.pie([1], colors=['#FFFFFF'], radius=0.4, 
-                              wedgeprops=dict(width=0.4, edgecolor='white', linewidth=2))
-    ax.text(0, 0, f'{total_weeks}\nWeeks', ha='center', va='center',
-            fontsize=14, fontweight='bold', color=COLORS['text'])
+    inner_circle = Circle((0, 0), 0.50, facecolor='white', edgecolor='#DDDDDD', linewidth=2)
+    ax.add_patch(inner_circle)
     
-    # 中圈：危险状态
-    sizes_mid = [total_bottom_3 / total_weeks, 1 - total_bottom_3 / total_weeks]
-    wedges2, texts2 = ax.pie(sizes_mid, colors=[COLORS['two_key'], COLORS['safe']], 
-                              radius=0.7, wedgeprops=dict(width=0.3, edgecolor='white', linewidth=2),
-                              startangle=90)
+    ax.text(0, 0.08, f'{total_weeks}', ha='center', va='bottom',
+            fontsize=18, fontweight='bold', color=COLORS['text'])
+    ax.text(0, -0.08, 'Weeks', ha='center', va='top',
+            fontsize=14, fontweight='bold', color='#666666')
     
-    # 外圈：最终命运
-    sizes_out = [total_saved / total_bottom_3, total_eliminated / total_bottom_3]
-    wedges3, texts3 = ax.pie(sizes_out, colors=[COLORS['saved'], COLORS['eliminated']], 
-                              radius=1.0, wedgeprops=dict(width=0.3, edgecolor='white', linewidth=2),
-                              startangle=90)
+    # 标题移到图内
+    ax.text(0, 1.22, 'Two-Key Decision Flow Hierarchy', ha='center', va='bottom',
+            fontsize=15, fontweight='bold', color=COLORS['text'], transform=ax.transData)
     
-    # 标签
-    ax.text(0, -1.35, 'Inner: Total Weeks | Mid: Danger Status | Outer: Final Fate',
-            ha='center', va='center', fontsize=11, color='#666666', style='italic')
+    # 说明文字
+    ax.text(0, -1.28, 'Outer Ring: Initial Status | Inner Ring: Final Fate (Bottom-3 only)',
+            ha='center', va='center', fontsize=10, color='#888888', style='italic')
     
-    ax.set_title('Sunburst: Two-Key Decision Hierarchy', fontsize=15, fontweight='bold', pad=25)
-    
-    plt.savefig(f'{save_dir}/Task4_sunburst_decision_tree.png', dpi=300, facecolor='white', bbox_inches='tight')
+    plt.savefig(f'{save_dir}/Task4_sunburst_decision_tree.png', dpi=300, 
+                facecolor='white', bbox_inches='tight')
     plt.close()
     
     print("  Saved: Task4_sunburst_decision_tree.png")

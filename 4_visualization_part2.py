@@ -223,109 +223,107 @@ def create_violin_robustness_matrix(save_dir):
 
 
 # ============================================================
-# 图 7: Waterfall Chart（指标增益分解）
+# 图 7: Regime-Shift Waterfall（阶段偏好演化瀑布图）
 # ============================================================
 
 def create_waterfall_metric_gain(metrics_df, save_dir):
     """
-    Waterfall 图：从 RANK 到 TWO_KEY 的指标演化路径
+    Regime-Shift 三面板瀑布图：展示不同偏好阶段下的赛制演化合理性
+    
+    面板1：前争议阶段（Engagement-first）
+    面板2：后争议阶段（Legitimacy+Robustness-first）
+    面板3：稳健折中（我们的 TWO_KEY）
     """
-    fig, ax = plt.subplots(figsize=(14, 8), facecolor='white')
-    ax.set_facecolor('#FAFBFC')
+    fig = plt.figure(figsize=(18, 6), facecolor='white')
+    from matplotlib.gridspec import GridSpec
+    gs = GridSpec(1, 3, figure=fig, wspace=0.28, left=0.06, right=0.94, top=0.88, bottom=0.15)
     
-    # 定义演化路径
     path_methods = ['RANK', 'PERCENT', 'SAVE', 'TWO_KEY']
+    colors_map = {
+        'RANK': COLORS['rank'],
+        'PERCENT': COLORS['percent'],
+        'SAVE': COLORS['save'],
+        'TWO_KEY': COLORS['twokey']
+    }
     
-    # 计算综合得分（简单平均）
-    composite_scores = {method: metrics_df.loc[method].mean() for method in path_methods}
+    # 定义三个阶段的权重（对应历史演变）
+    regimes = [
+        {
+            'name': 'Pre-Controversy\n(Engagement-First)',
+            'weights': np.array([0.10, 0.60, 0.10, 0.20]),  # 高 engagement
+            'label': '(a) Early Seasons',
+            'note': 'Why PERCENT?'
+        },
+        {
+            'name': 'Post-Controversy\n(Legitimacy+Robustness)',
+            'weights': np.array([0.50, 0.05, 0.40, 0.05]),  # 高 legitimacy+robustness
+            'label': '(b) After S2/S27',
+            'note': 'Why SAVE?'
+        },
+        {
+            'name': 'Robust Compromise\n(Our Proposal)',
+            'weights': np.array([0.30, 0.25, 0.35, 0.10]),  # 均衡
+            'label': '(c) TWO-KEY Era',
+            'note': 'Why TWO-KEY?'
+        }
+    ]
     
-    # Waterfall 数据
-    x_positions = []
-    heights = []
-    bottoms = []
-    colors = []
-    labels = []
-    
-    current_bottom = 0
-    
-    for i in range(len(path_methods)):
-        method = path_methods[i]
-        score = composite_scores[method]
+    for panel_idx, regime in enumerate(regimes):
+        ax = fig.add_subplot(gs[0, panel_idx])
+        ax.set_facecolor('#FAFBFC')
         
-        if i == 0:
-            # 起始值
-            heights.append(score)
-            bottoms.append(0)
-            colors.append(COLORS['rank'])
-            labels.append(f'{method}\n{score:.3f}')
-            current_bottom = score
-        else:
-            # 增量
-            prev_method = path_methods[i-1]
-            delta = score - composite_scores[prev_method]
+        # 计算该权重下各方法的效用
+        utilities = {}
+        for method in path_methods:
+            metric_vec = metrics_df.loc[method].values
+            utility = np.dot(regime['weights'], metric_vec)
+            utilities[method] = utility
+        
+        # 绘制条形图
+        x = np.arange(len(path_methods))
+        bars = ax.bar(x, [utilities[m] for m in path_methods],
+                     color=[colors_map[m] for m in path_methods],
+                     alpha=0.88, edgecolor='white', linewidth=2.5, width=0.55)
+        
+        # 标注最优方法
+        best_method = max(utilities, key=utilities.get)
+        for i, (bar, method) in enumerate(zip(bars, path_methods)):
+            height = bar.get_height()
             
-            if delta >= 0:
-                heights.append(delta)
-                bottoms.append(current_bottom)
-                colors.append(COLORS['positive'])
-                labels.append(f'+{delta:.3f}')
-            else:
-                heights.append(-delta)
-                bottoms.append(current_bottom + delta)
-                colors.append(COLORS['negative'])
-                labels.append(f'{delta:.3f}')
+            # 数值标签
+            label_color = colors_map[method] if method != best_method else '#222222'
+            fontweight = 'bold' if method == best_method else 'normal'
+            fontsize = 11 if method == best_method else 9
             
-            current_bottom += delta
+            ax.text(i, height + 0.015, f'{height:.3f}', ha='center', va='bottom',
+                   fontsize=fontsize, fontweight=fontweight, color=label_color)
             
-            # 添加当前值柱
-            x_positions.append(i)
-            heights.append(score)
-            bottoms.append(0)
-            colors.append(COLORS.get(method.lower(), COLORS['twokey']))
-            labels.append(f'{method}\n{score:.3f}')
-    
-    # 简化版：直接绘制条形图
-    x = np.arange(len(path_methods))
-    bars = ax.bar(x, [composite_scores[m] for m in path_methods], 
-                  color=[COLORS.get(m.lower(), COLORS['twokey']) for m in path_methods],
-                  alpha=0.85, edgecolor='white', linewidth=2.5, width=0.6)
-    
-    # 添加增益箭头
-    for i in range(len(path_methods) - 1):
-        y1 = composite_scores[path_methods[i]]
-        y2 = composite_scores[path_methods[i + 1]]
+            # 最优标记
+            if method == best_method:
+                ax.scatter(i, height + 0.065, s=200, marker='*', color='#FFD700',
+                          edgecolors='#FFA500', linewidths=2, zorder=5)
         
-        if y2 > y1:
-            color = COLORS['positive']
-            arrowstyle = '->'
-        else:
-            color = COLORS['negative']
-            arrowstyle = '->'
+        ax.set_xticks(x)
+        ax.set_xticklabels(path_methods, fontsize=10, fontweight='bold')
+        ax.set_ylabel('Utility U=w·f', fontsize=11, fontweight='bold')
+        ax.set_title(regime['label'], fontsize=12, fontweight='bold', pad=10)
+        ax.set_ylim(0, 0.88)
+        ax.grid(axis='y', alpha=0.25, linestyle=':', linewidth=1)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         
-        ax.annotate('', xy=(x[i + 1] - 0.3, y2), xytext=(x[i] + 0.3, y1),
-                   arrowprops=dict(arrowstyle=arrowstyle, lw=2.5, color=color, alpha=0.6))
+        # 添加权重说明（简化）
+        weight_text = f"w=[{regime['weights'][0]:.1f}, {regime['weights'][1]:.1f}, {regime['weights'][2]:.1f}, {regime['weights'][3]:.1f}]"
+        ax.text(0.5, -0.22, weight_text, ha='center', va='top',
+               transform=ax.transAxes, fontsize=8, color='#666666', style='italic')
         
-        # 增益标签
-        mid_y = (y1 + y2) / 2
-        delta = y2 - y1
-        ax.text(x[i] + 0.5, mid_y, f'{delta:+.3f}', ha='center', va='center',
-               fontsize=9, fontweight='bold', color=color,
-               bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor=color, linewidth=1.5))
+        # 添加解释标注
+        ax.text(0.5, 0.92, regime['note'], ha='center', va='bottom',
+               transform=ax.transAxes, fontsize=9, fontweight='bold',
+               color='#444444', style='italic')
     
-    # 数值标签
-    for i, (bar, method) in enumerate(zip(bars, path_methods)):
-        height = bar.get_height()
-        ax.text(i, height + 0.02, f'{height:.3f}', ha='center', va='bottom',
-               fontsize=11, fontweight='bold', color=COLORS.get(method.lower(), COLORS['twokey']))
-    
-    ax.set_xticks(x)
-    ax.set_xticklabels(path_methods, fontsize=12, fontweight='bold')
-    ax.set_ylabel('Composite Score', fontsize=12, fontweight='bold')
-    ax.set_title('Waterfall Analysis: Metric Evolution Path', fontsize=14, fontweight='bold', pad=12)
-    ax.set_ylim(0, 0.85)
-    ax.grid(axis='y', alpha=0.3, linestyle=':', linewidth=1)
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    plt.suptitle('Regime-Shift Analysis: Why Different Methods Emerged Historically', 
+                fontsize=14, fontweight='bold', y=0.96)
     
     plt.savefig(f'{save_dir}/Task4_waterfall_metric_gain.png', dpi=300, facecolor='white', bbox_inches='tight')
     plt.close()
@@ -464,8 +462,8 @@ def create_radar_ensemble(metrics_df, save_dir):
         if highlight:
             ax.legend(loc='upper right', fontsize=9, framealpha=0.9)
     
-    plt.suptitle('Radar Ensemble: Multi-Angle Performance Analysis', 
-                fontsize=16, fontweight='bold', y=0.97)
+    # 去掉大标题避免遮挡
+    # plt.suptitle('Radar Ensemble: Multi-Angle Performance Analysis', fontsize=16, fontweight='bold', y=0.97)
     
     plt.savefig(f'{save_dir}/Task4_radar_ensemble.png', dpi=300, facecolor='white', bbox_inches='tight')
     plt.close()
