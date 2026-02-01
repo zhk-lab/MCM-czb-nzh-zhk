@@ -4,22 +4,22 @@ overview: 为第四问实现改进版 Two-Key + Live Save 赛制，通过多维�
 todos:
   - id: two_key_core
     content: 实现 Two-Key 核心逻辑（五步流程 + 改进规则）
-    status: pending
+    status: completed
   - id: full_season_sim
     content: 全季反事实模拟（33 赛季 × 4 方法）
-    status: pending
+    status: completed
   - id: metrics_validation
     content: 四大指标计算 + 极端案例测试 + Pareto 分析
-    status: pending
+    status: completed
   - id: viz_sankey
     content: 可视化 1-4：Sankey + Alluvial + Chord + Sunburst
-    status: pending
+    status: completed
   - id: viz_advanced
     content: 可视化 5-8：Metric Network + Violin + Waterfall + Radar Ensemble
-    status: pending
+    status: completed
   - id: conclusions
     content: 整合结论文档 + 卖点 Memo + 与 Task 1-3 呼应
-    status: pending
+    status: completed
 isProject: false
 ---
 

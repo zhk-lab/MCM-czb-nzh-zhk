@@ -1,0 +1,84 @@
+season,week,n_contestants,bottom_3,saved,eliminated
+1,1,6,"Kelly Monaco,Evander Holyfield,John O'Hurley",Evander Holyfield,Kelly Monaco
+1,2,5,"Evander Holyfield,Kelly Monaco,Rachel Hunter",Kelly Monaco,Evander Holyfield
+1,3,3,"Evander Holyfield,Kelly Monaco,Rachel Hunter",Rachel Hunter,Evander Holyfield
+1,4,3,"John O'Hurley,Joey McIntyre,Rachel Hunter",John O'Hurley,Joey McIntyre
+2,1,10,"Kenny Mayne,Drew Lachey,George Hamilton",Kenny Mayne,George Hamilton
+2,2,8,"Tatum O'Neal,Stacy Keibler,Lisa Rinna",Lisa Rinna,Tatum O'Neal
+2,3,7,"Master P,Giselle Fernandez,George Hamilton",George Hamilton,Master P
+2,4,5,"Master P,George Hamilton,Lisa Rinna",George Hamilton,Master P
+2,5,5,"Tia Carrere,Jerry Rice,Lisa Rinna",Tia Carrere,Jerry Rice
+2,6,3,"George Hamilton,Jerry Rice,Stacy Keibler",Jerry Rice,George Hamilton
+2,7,3,"Lisa Rinna,Jerry Rice,Drew Lachey",Drew Lachey,Jerry Rice
+28,1,12,"Lamar Odom,Hannah Brown,Kate Flannery",Kate Flannery,Lamar Odom
+28,2,11,"Lamar Odom,Mary Wilson,Hannah Brown",Hannah Brown,Lamar Odom
+28,3,9,"Lamar Odom,Sean Spicer,Karamo Brown",Karamo Brown,Lamar Odom
+28,4,9,"Kate Flannery,Lamar Odom,Sean Spicer",Kate Flannery,Lamar Odom
+28,5,9,"Sean Spicer,Karamo Brown,Kel Mitchell",Karamo Brown,Sean Spicer
+28,6,8,"Sean Spicer,Sailor Brinkley-Cook,Ally Brooke",Ally Brooke,Sean Spicer
+28,7,7,"Karamo Brown,Lauren Alaina,James Van Der Beek",Lauren Alaina,Karamo Brown
+28,8,6,"Lauren Alaina,Kate Flannery,Hannah Brown",Lauren Alaina,Kate Flannery
+28,9,5,"Sean Spicer,Lauren Alaina,James Van Der Beek",Lauren Alaina,Sean Spicer
+28,10,5,"Lauren Alaina,James Van Der Beek,Hannah Brown",Hannah Brown,James Van Der Beek
+28,11,4,"Lauren Alaina,Ally Brooke,Hannah Brown",Lauren Alaina,Hannah Brown
+29,1,15,"Carole Baskin,Skai Jackson,Chrishell Stause",Chrishell Stause,Carole Baskin
+29,2,14,"Skai Jackson,Charles Oakley,Carole Baskin",Skai Jackson,Charles Oakley
+29,3,13,"Carole Baskin,Nev Schulman,Johnny Weir",Johnny Weir,Carole Baskin
+29,4,13,"Jesse Metcalfe,Anne Heche,Skai Jackson",Jesse Metcalfe,Anne Heche
+29,5,12,"Jesse Metcalfe,Johnny Weir,Chrishell Stause",Jesse Metcalfe,Chrishell Stause
+29,6,10,"Veron Davis,Johnny Weir,Kaitlyn Bristowe",Kaitlyn Bristowe,Veron Davis
+29,7,9,"Monica Aldama,Nev Schulman,Kaitlyn Bristowe",Nev Schulman,Monica Aldama
+29,8,7,"Chrishell Stause,Nev Schulman,Nelly",Nelly,Chrishell Stause
+29,9,7,"AJ McLean,Nelly,Justina Machado",Justina Machado,Nelly
+29,10,5,"Skai Jackson,Nev Schulman,Nelly",Nev Schulman,Nelly
+29,11,3,"Justina Machado,Nelly,Nev Schulman",Justina Machado,Nelly
+30,1,15,"Jimmie Allen,Iman Shumpert,JoJo Siwa",Iman Shumpert,Jimmie Allen
+30,2,14,"Matt James,Martin Kove,Brian Austin Green",Brian Austin Green,Martin Kove
+30,3,13,"Cody Rigsby,Mike ""The Miz"" Mizanin,Brian Austin Green",Cody Rigsby,Brian Austin Green
+30,4,11,"Matt James,Brian Austin Green,Cody Rigsby",Cody Rigsby,Brian Austin Green
+30,5,10,"Iman Shumpert,Melanie C,JoJo Siwa",JoJo Siwa,Iman Shumpert
+30,6,8,"Kenya Moore,Mike ""The Miz"" Mizanin,Melora Hardin","Mike ""The Miz"" Mizanin",Kenya Moore
+30,7,7,"Mike ""The Miz"" Mizanin,Iman Shumpert,Jimmie Allen",Jimmie Allen,"Mike ""The Miz"" Mizanin"
+30,8,6,"Olivia Jade,Jimmie Allen,Iman Shumpert",Iman Shumpert,Jimmie Allen
+30,9,5,"Melora Hardin,Cody Rigsby,Iman Shumpert",Melora Hardin,Cody Rigsby
+31,1,16,"Jason Lewis,Vinny Guadagnino,Wayne Brady",Vinny Guadagnino,Jason Lewis
+31,2,15,"Teresa Giudice,Gabby Windey,Daniel Durant",Daniel Durant,Teresa Giudice
+31,3,14,"Cheryl Ladd,Gabby Windey,Daniel Durant",Cheryl Ladd,Daniel Durant
+31,4,12,"Sam Champion,Gabby Windey,Wayne Brady",Wayne Brady,Sam Champion
+31,5,11,"Joseph Baena,Gabby Windey,Daniel Durant",Daniel Durant,Joseph Baena
+31,6,9,"Jessie James Decker,Trevor Donovan,Heidi D'Amelio",Heidi D'Amelio,Jessie James Decker
+31,7,8,"Jordin Sparks,Wayne Brady,Shangela",Shangela,Jordin Sparks
+31,8,7,"Vinny Guadagnino,Heidi D'Amelio,Trevor Donovan",Trevor Donovan,Vinny Guadagnino
+31,9,5,"Trevor Donovan,Daniel Durant,Wayne Brady",Daniel Durant,Trevor Donovan
+31,10,4,"Wayne Brady,Shangela,Charli D'Amelio",Wayne Brady,Shangela
+32,1,14,"Matt Walsh,Jason Mraz,Harry Jowsey",Jason Mraz,Matt Walsh
+32,2,13,"Barry Williams,Adrian Peterson,Mauricio Umansky",Adrian Peterson,Mauricio Umansky
+32,3,11,"Mauricio Umansky,Tyson Beckford,Charity Lawson",Mauricio Umansky,Tyson Beckford
+32,4,10,"Mauricio Umansky,Barry Williams,Alyson Hannigan",Alyson Hannigan,Barry Williams
+32,5,8,"Mira Sorvino,Harry Jowsey,Charity Lawson",Charity Lawson,Harry Jowsey
+32,6,6,"Barry Williams,Harry Jowsey,Alyson Hannigan",Barry Williams,Harry Jowsey
+32,7,6,"Harry Jowsey,Lele Pons,Xochitl Gomez",Lele Pons,Harry Jowsey
+32,8,5,"Barry Williams,Jason Mraz,Xochitl Gomez",Xochitl Gomez,Jason Mraz
+32,9,4,"Alyson Hannigan,Harry Jowsey,Xochitl Gomez",Xochitl Gomez,Harry Jowsey
+32,10,4,"Alyson Hannigan,Jason Mraz,Charity Lawson",Jason Mraz,Alyson Hannigan
+32,11,3,"Alyson Hannigan,Xochitl Gomez,Charity Lawson",Charity Lawson,Alyson Hannigan
+33,1,13,"Tori Spelling,Eric Roberts,Chandler Kinney",Tori Spelling,Eric Roberts
+33,2,12,"Anna Delvey,Chandler Kinney,Reginald VelJohnson",Chandler Kinney,Reginald VelJohnson
+33,3,9,"Reginald VelJohnson,Eric Roberts,Joey Graziadei",Joey Graziadei,Reginald VelJohnson
+33,4,9,"Ilona Maher,Dwight Howard ,Chandler Kinney",Dwight Howard ,Ilona Maher
+33,5,7,"Phaedra Parks,Dwight Howard ,Joey Graziadei",Phaedra Parks,Dwight Howard 
+33,6,5,"Stephen Nedoroscik,Joey Graziadei,Ilona Maher",Joey Graziadei,Ilona Maher
+33,7,4,"Dwight Howard ,Chandler Kinney,Danny Amendola",Danny Amendola,Dwight Howard 
+33,8,4,"Stephen Nedoroscik,Ilona Maher,Joey Graziadei",Joey Graziadei,Stephen Nedoroscik
+33,9,3,"Ilona Maher,Chandler Kinney,Danny Amendola",Chandler Kinney,Danny Amendola
+34,1,14,"Baron Davis,Andy Richter,Alix Earle",Alix Earle,Andy Richter
+34,2,13,"Baron Davis,Corey Feldman,Elaine Hendrix",Elaine Hendrix,Corey Feldman
+34,3,11,"Andy Richter,Jen Affleck,Lauren Jauregui",Andy Richter,Lauren Jauregui
+34,4,10,"Andy Richter,Hilaria Baldwin,Danielle Fishel",Danielle Fishel,Andy Richter
+34,5,9,"Jen Affleck,Alix Earle,Andy Richter",Alix Earle,Andy Richter
+34,6,9,"Scott Hoying,Jordan Chiles,Whitney Leavitt",Whitney Leavitt,Scott Hoying
+34,7,8,"Jen Affleck,Elaine Hendrix,Dylan Efron",Dylan Efron,Elaine Hendrix
+34,8,6,"Danielle Fishel,Andy Richter,Elaine Hendrix",Elaine Hendrix,Andy Richter
+34,9,5,"Elaine Hendrix,Andy Richter,Jordan Chiles",Elaine Hendrix,Andy Richter
+34,10,5,"Elaine Hendrix,Dylan Efron,Whitney Leavitt",Whitney Leavitt,Dylan Efron
+34,11,3,"Dylan Efron,Elaine Hendrix,Alix Earle",Alix Earle,Elaine Hendrix
