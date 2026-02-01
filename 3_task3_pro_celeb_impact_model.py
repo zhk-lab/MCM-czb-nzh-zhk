@@ -360,13 +360,52 @@ def construct_celeb_features(panel_df):
 
 
 # ============================================================
-# STEP 4: 混合效应模型拟合
+# STEP 3A: 时变系数辅助函数（model3.pdf核心：步骤6-8）
+# ============================================================
+def create_time_varying_features(panel_df):
+    """根据model3.pdf构造时变交互项
+    
+    实现步骤7-8：数据驱动的函数形状选择与线性化
+    - physicality: Sigmoid (k=3.02, t0=4.82)
+    - age: Quadratic (t, t^2)
+    - pro_experience: Step at Week 3
+    - pro_win_rate: Step at Week 7
+    """
+    df = panel_df.copy()
+    t = df['week'].values
+    
+    # Sigmoid辅助变量（physicality）：S(t) = 1 / [1 + exp(-k*(t - t0))]
+    # 从model3.pdf: k=3.02, t0=4.82, 体能效应从+0.887→-0.720
+    k_phys, t0_phys = 3.02, 4.82
+    df['S_t_physicality'] = 1 / (1 + np.exp(-k_phys * (t - t0_phys)))
+    
+    # Step函数辅助变量（pro_experience）: D3(t) = I(t > 3)
+    # Week 1-3: β=0.106, Week 4+: β=0.224
+    df['D3_t_pro_exp'] = (t > 3).astype(float)
+    
+    # Step函数辅助变量（pro_win_rate）: D7(t) = I(t > 7)
+    # Week 1-7: β=5.702, Week 8+: β=3.589
+    df['D7_t_pro_wr'] = (t > 7).astype(float)
+    
+    # Quadratic辅助变量（age）: t, t^2
+    # U型曲线，极值点t*=4.15周
+    df['t_age'] = t
+    df['t2_age'] = t ** 2
+    
+    return df
+
+
+# ============================================================
+# STEP 4: 混合效应模型拟合（含时变系数，步骤8-9）
 # ============================================================
 def fit_mixed_effects_models(panel_df, save_dir):
-    """拟合双路径混合效应模型"""
+    """拟合双路径混合效应模型（Time-Varying Coefficients）"""
     print("\n" + "=" * 70)
-    print("STEP 4: MIXED EFFECTS MODELING")
+    print("STEP 4: MIXED EFFECTS MODELING (Time-Varying Coefficients)")
     print("=" * 70)
+    
+    # 生成时变交互项（步骤8）
+    panel_df = create_time_varying_features(panel_df)
     
     # 准备数据
     model_df = panel_df.copy()
@@ -381,15 +420,19 @@ def fit_mixed_effects_models(panel_df, save_dir):
     scaler = StandardScaler()
     model_df[continuous_vars] = scaler.fit_transform(model_df[continuous_vars])
     
-    # Judge模型（标准OLS with 固定效应作为基准）
-    print("\n  [1/2] Fitting Judge Score Model...")
+    # Judge模型（固定效应 + 时变交互项）
+    print("\n  [1/2] Fitting Judge Score Model (with Time-Varying β)...")
     
-    # 因为statsmodels的MixedLM在大数据上可能很慢，我们用固定效应+聚类标准误作为实用替代
+    # 加入时变交互项（步骤8：线性化后的时变系数）
     judge_formula = """judge_total ~ pro_experience_seasons + pro_win_rate + pro_avg_placement + 
                        pro_current_form + pro_celebrity_chemistry + pro_concurrent_strength +
                        age_z + age_sq + industry_physicality + celebrity_visibility + 
                        is_us_based + pre_show_popularity +
                        interact_exp_physicality + interact_winrate_visibility + interact_week_age +
+                       I(S_t_physicality * industry_physicality) + 
+                       I(D3_t_pro_exp * pro_experience_seasons) +
+                       I(D7_t_pro_wr * pro_win_rate) +
+                       I(t_age * age_z) + I(t2_age * age_z) +
                        C(week) + C(season)"""
     
     judge_model = smf.ols(judge_formula, data=model_df).fit(
@@ -398,8 +441,8 @@ def fit_mixed_effects_models(panel_df, save_dir):
     print(f"    R-squared: {judge_model.rsquared:.4f}")
     print(f"    Adj R-squared: {judge_model.rsquared_adj:.4f}")
     
-    # Fan模型（logit变换 fan_vote_share）
-    print("\n  [2/2] Fitting Fan Vote Model...")
+    # Fan模型（logit变换 + 时变交互项）
+    print("\n  [2/2] Fitting Fan Vote Model (with Time-Varying β)...")
     
     # logit变换，处理边界值
     model_df['fan_vote_logit'] = model_df['fan_vote_share'].clip(0.001, 0.999).apply(logit)
@@ -409,6 +452,10 @@ def fit_mixed_effects_models(panel_df, save_dir):
                      age_z + age_sq + industry_physicality + celebrity_visibility + 
                      is_us_based + pre_show_popularity +
                      interact_exp_physicality + interact_winrate_visibility + interact_week_age +
+                     I(S_t_physicality * industry_physicality) + 
+                     I(D3_t_pro_exp * pro_experience_seasons) +
+                     I(D7_t_pro_wr * pro_win_rate) +
+                     I(t_age * age_z) + I(t2_age * age_z) +
                      C(week) + C(season)"""
     
     fan_model = smf.ols(fan_formula, data=model_df).fit(
@@ -493,6 +540,118 @@ def fit_mixed_effects_models(panel_df, save_dir):
 # ============================================================
 # STEP 5: 多样化可视化（借鉴Matplotlib Gallery新颖展示）
 # ============================================================
+
+def create_time_varying_beta_plot(save_dir):
+    """新增图0: 时变系数轨迹（model3.pdf步骤7核心可视化）"""
+    print("\n  [0/7] Creating Time-Varying Coefficient Trajectories...")
+    
+    weeks = np.arange(1, 11)
+    
+    # 根据model3.pdf参数重现β(t)轨迹
+    # 1. Physicality (Sigmoid): β(t) = L·S(t) + b
+    L_phys, k_phys, t0_phys, b_phys = -1.607, 3.02, 4.82, 0.887
+    S_t = 1 / (1 + np.exp(-k_phys * (weeks - t0_phys)))
+    beta_physicality = L_phys * S_t + b_phys
+    
+    # 2. Age (Quadratic): β(t) = a·t² + b·t + c
+    a_age, b_age, c_age = 0.00183, -0.01521, -0.08461
+    beta_age = a_age * weeks**2 + b_age * weeks + c_age
+    
+    # 3. Pro Experience (Step): β(t) = β_early·I(t≤3) + β_late·I(t>3)
+    beta_exp_early, beta_exp_late = 0.106, 0.224
+    beta_pro_exp = np.where(weeks <= 3, beta_exp_early, beta_exp_late)
+    
+    # 4. Pro Win Rate (Step): β(t) = β_early·I(t≤7) + β_late·I(t>7)
+    beta_wr_early, beta_wr_late = 5.702, 3.589
+    beta_pro_wr = np.where(weeks <= 7, beta_wr_early, beta_wr_late)
+    
+    # 创建2x2子图（新颖布局：Color Hunt高级配色）
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10), facecolor='white')
+    fig.suptitle('Time-Varying Coefficient Trajectories (Model 3 - Data-Driven)', 
+                 fontsize=14, fontweight='bold', y=0.98)
+    
+    # 子图1：Physicality (Sigmoid)
+    ax1 = axes[0, 0]
+    ax1.plot(weeks, beta_physicality, linewidth=3, color=COLORS['grad3'], marker='o', 
+             markersize=7, markerfacecolor=COLORS['accent1'], markeredgecolor=COLORS['grad3'], markeredgewidth=2)
+    ax1.axhline(0, color='black', linestyle='--', linewidth=1, alpha=0.4)
+    ax1.axvline(t0_phys, color=COLORS['negative'], linestyle=':', linewidth=1.5, alpha=0.6, label=f'Inflection: Week {t0_phys:.1f}')
+    ax1.fill_between(weeks, 0, beta_physicality, where=(beta_physicality>0), alpha=0.15, color=COLORS['positive'])
+    ax1.fill_between(weeks, 0, beta_physicality, where=(beta_physicality<0), alpha=0.15, color=COLORS['negative'])
+    ax1.set_title('(a) Physicality: Sigmoid Transition', fontsize=11, fontweight='bold', pad=10)
+    ax1.set_xlabel('Week', fontsize=10)
+    ax1.set_ylabel('β(t) - Physicality Effect', fontsize=10)
+    ax1.legend(fontsize=9, frameon=True, fancybox=True, shadow=True)
+    ax1.grid(alpha=0.2, linestyle='--')
+    ax1.set_facecolor(COLORS['bg'])
+    ax1.text(0.98, 0.95, f'Early: +{b_phys:.2f}\nLate: {beta_physicality[-1]:.2f}', 
+             transform=ax1.transAxes, ha='right', va='top', fontsize=9, 
+             bbox=dict(boxstyle='round', facecolor=COLORS['bg_alt'], alpha=0.7))
+    
+    # 子图2：Age (Quadratic)
+    ax2 = axes[0, 1]
+    ax2.plot(weeks, beta_age, linewidth=3, color=COLORS['judge'], marker='s', 
+             markersize=7, markerfacecolor=COLORS['accent3'], markeredgecolor=COLORS['judge'], markeredgewidth=2)
+    ax2.axhline(0, color='black', linestyle='--', linewidth=1, alpha=0.4)
+    t_star = -b_age / (2 * a_age)
+    beta_min = beta_age[np.argmin(beta_age)]
+    ax2.axvline(t_star, color=COLORS['negative'], linestyle=':', linewidth=1.5, alpha=0.6, label=f'Min: Week {t_star:.1f}')
+    ax2.scatter([t_star], [beta_min], s=150, color='red', marker='*', zorder=5, edgecolor='white', linewidths=2)
+    ax2.fill_between(weeks, beta_age.min(), beta_age, alpha=0.15, color=COLORS['judge'])
+    ax2.set_title('(b) Age: U-Shaped Trajectory', fontsize=11, fontweight='bold', pad=10)
+    ax2.set_xlabel('Week', fontsize=10)
+    ax2.set_ylabel('β(t) - Age Effect', fontsize=10)
+    ax2.legend(fontsize=9, frameon=True, fancybox=True, shadow=True)
+    ax2.grid(alpha=0.2, linestyle='--')
+    ax2.set_facecolor(COLORS['bg'])
+    ax2.text(0.98, 0.05, f'Min β: {beta_min:.3f}\nat Week {t_star:.1f}', 
+             transform=ax2.transAxes, ha='right', va='bottom', fontsize=9, 
+             bbox=dict(boxstyle='round', facecolor=COLORS['bg_alt'], alpha=0.7))
+    
+    # 子图3：Pro Experience (Step)
+    ax3 = axes[1, 0]
+    ax3.step(weeks, beta_pro_exp, where='post', linewidth=3, color=COLORS['fan'], marker='D', 
+             markersize=7, markerfacecolor=COLORS['accent1'], markeredgecolor=COLORS['fan'], markeredgewidth=2)
+    ax3.axhline(0, color='black', linestyle='--', linewidth=1, alpha=0.4)
+    ax3.axvline(3.5, color=COLORS['negative'], linestyle=':', linewidth=1.5, alpha=0.6, label='Threshold: Week 3')
+    delta_exp = beta_exp_late - beta_exp_early
+    ax3.annotate(f'+{delta_exp:.3f}', xy=(5, (beta_exp_early + beta_exp_late)/2), 
+                 fontsize=10, color='red', fontweight='bold', ha='center')
+    ax3.set_title('(c) Pro Experience: Step Function', fontsize=11, fontweight='bold', pad=10)
+    ax3.set_xlabel('Week', fontsize=10)
+    ax3.set_ylabel('β(t) - Experience Effect', fontsize=10)
+    ax3.legend(fontsize=9, frameon=True, fancybox=True, shadow=True)
+    ax3.grid(alpha=0.2, linestyle='--')
+    ax3.set_facecolor(COLORS['bg'])
+    ax3.text(0.02, 0.95, f'Early (≤3): {beta_exp_early:.3f}\nLate (>3): {beta_exp_late:.3f}', 
+             transform=ax3.transAxes, ha='left', va='top', fontsize=9, 
+             bbox=dict(boxstyle='round', facecolor=COLORS['bg_alt'], alpha=0.7))
+    
+    # 子图4：Pro Win Rate (Step)
+    ax4 = axes[1, 1]
+    ax4.step(weeks, beta_pro_wr, where='post', linewidth=3, color=COLORS['both'], marker='v', 
+             markersize=7, markerfacecolor=COLORS['accent2'], markeredgecolor=COLORS['both'], markeredgewidth=2)
+    ax4.axhline(0, color='black', linestyle='--', linewidth=1, alpha=0.4)
+    ax4.axvline(7.5, color=COLORS['negative'], linestyle=':', linewidth=1.5, alpha=0.6, label='Threshold: Week 7')
+    delta_wr = beta_wr_late - beta_wr_early
+    ax4.annotate(f'{delta_wr:.2f} (-37%)', xy=(8.5, (beta_wr_early + beta_wr_late)/2), 
+                 fontsize=10, color='blue', fontweight='bold', ha='left')
+    ax4.set_title('(d) Pro Win Rate: Late-Stage Decline', fontsize=11, fontweight='bold', pad=10)
+    ax4.set_xlabel('Week', fontsize=10)
+    ax4.set_ylabel('β(t) - Win Rate Effect', fontsize=10)
+    ax4.legend(fontsize=9, frameon=True, fancybox=True, shadow=True)
+    ax4.grid(alpha=0.2, linestyle='--')
+    ax4.set_facecolor(COLORS['bg'])
+    ax4.text(0.02, 0.95, f'Early (≤7): {beta_wr_early:.2f}\nLate (>7): {beta_wr_late:.2f}', 
+             transform=ax4.transAxes, ha='left', va='top', fontsize=9, 
+             bbox=dict(boxstyle='round', facecolor=COLORS['bg_alt'], alpha=0.7))
+    
+    plt.tight_layout()
+    plt.savefig(f'{save_dir}/Task3_0_time_varying_beta.png', dpi=300, bbox_inches='tight', facecolor='white')
+    plt.close()
+    print("      Saved: Task3_0_time_varying_beta.png")
+
+
 def create_forest_plot(results_df, save_dir):
     """图1: Forest Plot - 双通道系数对比（新颖展示）"""
     print("\n  [1/6] Creating Forest Plot (Coefficient Comparison)...")
@@ -1387,7 +1546,8 @@ def generate_conclusions_chinese(results_df, rho, judge_model, fan_model, panel_
 # MAIN
 # ============================================================
 def main():
-    base_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk"
+    # 自动检测当前工作路径
+    base_dir = os.path.dirname(os.path.abspath(__file__))
     save_dir = os.path.join(base_dir, "3_figures")
     os.makedirs(save_dir, exist_ok=True)
     
@@ -1412,11 +1572,12 @@ def main():
     results_df, contestant_effects, rho, judge_model, fan_model, var_df = \
         fit_mixed_effects_models(panel_df, save_dir)
     
-    # Step 5: 多样化可视化
+    # Step 5: 多样化可视化（新增时变系数轨迹）
     print("\n" + "=" * 70)
-    print("GENERATING VISUALIZATIONS (7 Diverse Chart Types)")
+    print("GENERATING VISUALIZATIONS (8 Charts: +Time-Varying β Trajectory)")
     print("=" * 70)
     
+    create_time_varying_beta_plot(save_dir)  # 新增：时变系数轨迹（model3.pdf步骤7核心）
     create_forest_plot(results_df, save_dir)
     create_heterogeneity_heatmap(results_df, save_dir)
     create_violin_distribution(panel_df, save_dir)
