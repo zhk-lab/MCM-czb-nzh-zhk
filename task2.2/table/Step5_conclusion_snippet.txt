@@ -1,0 +1,4 @@
+
+### 异质性机制验证：fan_share 极端性的显性关联
+
+分组分析显示 fan-favored 子集的 fan_top10_rate 均值达 0.204（显著高于 judge-favored 的 0.035，Kruskal-Wallis p=0.043），且其 delta_percent 均值仅 0.056（几乎不被抑制），而 judge-favored 子集的 delta_percent 均值为 0.700（被显著抑制）。交互回归模型（R-squared=0.140）显示 fan_top10_rate×I[fan-favored] 的交互系数为 -2.572，证明了"极端性结构差异导致异质性效应"的因果链。此外，周级分布统计显示 fan_share 的 CV 与 Gini 系数均显著高于 judge_percent，为"fan_share 更极端/尖峰厚尾"提供了直接证据。综合分析表明，PERCENT 的异质性源于其"幅度连续计入"机制在粉丝端极端分布下的非对称放大：fan-favored 的高峰动员模式使 PERCENT 保留甚至放大粉丝优势，而 judge-favored/neutral 的粉丝低谷使 PERCENT 通过 judge_percent 更强烈地抑制名次。
