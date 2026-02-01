@@ -77,16 +77,16 @@
 **承认不确定性 → 系统处理 → 稳健结论**
 
 - **Pareto前沿分析**（权重无关）：所有三种方法都是Pareto-efficient
-- **权重敏感性分析**：PERCENT在62.7%的权重空间中获胜
+- **权重敏感性分析**：PERCENT在**55.7%**的权重空间中获胜（SAVE 23.6%，RANK 20.7%）
 - **约束优化**：Bobby Bones触发legitimacy硬约束（冠军不应多周judge最低）
 
 ### 3.2 四维度评估结果（基于Task 2.1 + 2.2数据）
 
 | 方法 | Legitimacy | Engagement | Robustness | Transparency |
 |------|-----------|-----------|-----------|-------------|
-| **RANK** | 0.508 | **0.766** | 0.732 | **1.000** |
-| **PERCENT** | 0.407 | **1.000** | 0.732 | **1.000** |
-| **SAVE** | **0.600** | 0.720 | **0.820** | 0.700 |
+| **RANK** | 0.508 | 0.766 | 0.673 | **1.000** |
+| **PERCENT** | 0.407 | **1.000** | 0.637 | **1.000** |
+| **SAVE** | **0.600** | 0.720 | **0.757** | 0.700 |
 
 **解读**：
 - **PERCENT**: Engagement最高（争议最多）
@@ -102,7 +102,7 @@ Primary Rule: PERCENT
 
 Trigger Condition (启用Judges Save):
   - Bottom-two margin < 5%（高不确定性）
-  - OR contestant有>8周judge最低分
+  - OR contestant长期处于judge最后（持续低技术认可）
 
 Rationale (基于2.2新证据):
   1. PERCENT对争议集合总体有显著抑制（+0.9, p=0.03）
@@ -116,8 +116,8 @@ Rationale (基于2.2新证据):
 **基于三层证据**：
 
 1. **Task 2.1 全局分析**（N=421）：
-   - PERCENT保留了judge差距信息，避免压缩评委意见
-   - FFI显示PERCENT更接近评委（fan-favor index更低）
+   - FFI显示：**PERCENT更偏向粉丝排序**（mean FFI\_percent = +0.093 vs mean FFI\_rank = -0.008）
+   - 这意味着：PERCENT更“兑现”粉丝优势（Engagement更高），但Legitimacy更低
 
 2. **Task 2.2 争议分析**（N=105）：
    - PERCENT对neutral/judge-favored争议强烈抑制（+2.2~+2.5）
@@ -125,7 +125,7 @@ Rationale (基于2.2新证据):
    - SAVE总体不显著（p=0.13），但个体可剧烈（±8）
 
 3. **Task 2.3 多目标优化**：
-   - PERCENT在62.7%权重空间获胜
+   - PERCENT在55.7%权重空间获胜（SAVE 23.6%，RANK 20.7%）
    - 条件触发SAVE只增加必要复杂度
    - 同时满足legitimacy约束（Bobby Bones触发事件）
 
@@ -207,13 +207,13 @@ Task 2.3基于**多目标优化框架**：
 
 | 方法 | Legitimacy | Engagement | Robustness | Transparency |
 |------|-----------|-----------|-----------|-------------|
-| RANK | 0.508 | 0.766 | 0.732 | 1.000 |
-| PERCENT | 0.407 | **1.000** | 0.732 | 1.000 |
-| SAVE | **0.600** | 0.720 | **0.820** | 0.700 |
+| RANK | 0.508 | 0.766 | 0.673 | 1.000 |
+| PERCENT | 0.407 | **1.000** | 0.637 | 1.000 |
+| SAVE | **0.600** | 0.720 | **0.757** | 0.700 |
 
 **Pareto分析**：所有三种方法都是Pareto-efficient（无绝对赢家）
 
-**权重敏感性**：PERCENT在62.7%的权重空间中获胜
+**权重敏感性**：PERCENT在55.7%的权重空间中获胜（SAVE 23.6%，RANK 20.7%）
 
 ### 2.2 整合后的增强结论
 
@@ -232,7 +232,7 @@ Primary Rule: PERCENT
 Conditional Trigger: Judges Save
   触发条件：
   - Bottom-two margin < 5%
-  - OR >8周judge最低分
+  - OR 长期judge最后（持续低技术认可）
   
   理由（基于2.2新证据）：
   ✓ 总体效应不显著（p=0.13）→ 不应普遍使用
@@ -243,9 +243,10 @@ Conditional Trigger: Judges Save
 ### 2.3 支持性证据链
 
 **证据1（Task 2.1）**：粉丝票分布呈"尖峰厚尾"
-- Gini系数：fan=0.398, judge=0.189（粉丝不平等度高1倍）
-- 90/10分位比：fan=5.68, judge=2.05（粉丝极端差异更大）
-- → PERCENT引入judge_percent可平衡极端粉丝票
+- Gini系数（周内均值）：fan=0.112, judge=0.057（粉丝不平等度约2倍）
+- 90/10分位比（周内均值）：fan=2.23, judge=1.29（粉丝极端差异更大）
+- CV（周内均值）：fan=0.207, judge=0.105（约2倍）
+- → 机制含义：**PERCENT（线性相加）对“票差”更敏感，而RANK（名次）会压缩票差**
 
 **证据2（Task 2.2）**：PERCENT的异质性效应
 - 对争议总体显著抑制（p=0.03）
@@ -254,7 +255,7 @@ Conditional Trigger: Judges Save
 
 **证据3（Task 2.3）**：多目标稳健性
 - Pareto分析：所有方法可行（无绝对赢家）
-- 权重敏感性：PERCENT在大部分偏好下最优（62.7%）
+- 权重敏感性：PERCENT在大部分偏好下最优（55.7%）
 - 约束检验：Bobby Bones事件触发legitimacy底线
 
 ---
@@ -271,12 +272,12 @@ Conditional Trigger: Judges Save
 - 理由1：对争议集合总体有**统计显著抑制**（+0.9名，p=0.031）
 - 理由2：对fan-favored轻微促进（-0.17）→ **保护观众参与核心价值**
 - 理由3：对neutral/judge-favored强烈抑制（+2.2~+2.5）→ **纠偏极端争议**
-- 理由4：在多目标优化中**62.7%权重空间获胜**
+- 理由4：在多目标优化中**55.7%权重空间获胜**
 
 **辅助机制：Judges Save（条件触发）**
 - 触发条件：
   - Bottom-two的fan_share差距 < 5%（高不确定性）
-  - OR 选手累计>8周judge最低分（Bobby Bones型风险）
+  - OR 选手长期处于judge最后（持续低技术认可）
 - 理由1：总体效应不显著（p=0.13）→ **不应普遍使用**
 - 理由2：个体影响可达±8名 → **关键时刻可改变结果**
 - 理由3：只在极端事件触发 → **保持规则透明度**
@@ -286,11 +287,11 @@ Conditional Trigger: Judges Save
 **单独RANK的问题**：
 - 压缩评委差距，只保留名次
 - 容易被粉丝票"尖峰厚尾"分布主导（Task 2.1证据）
-- Legitimacy最低（0.508）
+- 在多目标权衡下并非最优：Engagement明显低于PERCENT（0.766 vs 1.000）
 
 **单独PERCENT的问题**：
 - 虽然总体抑制争议，但对fan-favored促进
-- 无法应对极端事件（如Bristol Palin连续12周judge最低）
+- Legitimacy与Robustness都低于RANK/SAVE（0.407且robust=0.637）
 - 缺少"最后防线"
 
 **单独SAVE的问题**：
@@ -329,7 +330,7 @@ Conditional Trigger: Judges Save
 
 基于421名选手的全局分析与105名争议选手的反事实淘汰链模拟，我们发现：
 
-**PERCENT方法对争议集合总体有统计显著的抑制效应（+0.9名，p=0.031），但这一效应具有异质性——主要抑制neutral和judge-favored争议（+2.2~+2.5名），而对fan-favored选手轻微促进（-0.17名）。SAVE机制总体效应不显著（p=0.13），但个体影响可达±8名。基于多目标稳健优化框架（Pareto分析+权重敏感性+约束检验），我们推荐采用混合机制：以PERCENT为主规则，在极端情况下（bottom-two margin<5% 或 >8周judge最低）条件触发Judges Save，以平衡专业性（legitimacy）、观众参与（engagement）与稳健性（robustness）。**
+**PERCENT方法对争议集合总体有统计显著的抑制效应（+0.9名，p=0.031），但这一效应具有异质性——主要抑制neutral和judge-favored争议（+2.2~+2.5名），而对fan-favored选手轻微促进（-0.17名）。SAVE机制总体效应不显著（p=0.13），但个体影响可达±8名。基于多目标稳健优化框架（Pareto分析+权重敏感性+约束检验），我们推荐采用混合机制：以PERCENT为主规则，在极端情况下（bottom-two margin<5% 或 长期judge最后）条件触发Judges Save，以平衡专业性（legitimacy）、观众参与（engagement）与稳健性（robustness）。**
 
 ---
 

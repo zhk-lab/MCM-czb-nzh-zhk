@@ -1,219 +1,70 @@
-# 统一机制分析：至关重要的曲线
+# 统一机制分析（已修正为“整季淘汰链”口径）
 
-## 进行的操作
+这份说明对应脚本 `2.1_unified_mechanism_curve.py` 的**修正版输出**：不再用“逐周排名差”，而是用**整季反事实淘汰链**得到最终名次差，从而与 Task 2.2 的结论口径完全一致。
 
-### 1. 定义统一坐标系（同量纲、双向可解释）
+## 1. 统一坐标系（同量纲、可解释、可复现）
 
-**自变量 X（支持差距）**：
+**(1) 周内支持差距（原始量）**
+
 \[
 \Delta_{i,t} = F_{i,t} - J_{i,t}
 \]
-其中：
-- \(F_{i,t}\) = fan vote share（你们已有的归一化粉丝票）
-- \(J_{i,t}\) = judge score percent（评委分数归一化：\(S_{i,t}/\sum_j S_{j,t}\)）
 
-解释：
-- \(\Delta < 0\)：评委更强（judge-favored）
-- \(\Delta \approx 0\)：粉丝与评委持平
-- \(\Delta > 0\)：粉丝更强（fan-favored），\(\Delta\) 越大争议越强
+- \(F_{i,t}\)：第 \(t\) 周粉丝票份额（fan vote share）
+- \(J_{i,t}\)：第 \(t\) 周评委分数份额（judge percent）
 
-**因变量 Y（方法差异）**：
+**(2) 赛季层面的“粉丝偏好程度”（X轴）**
+
 \[
-Y_{i,t} = r^{percent}_{i,t} - r^{rank}_{i,t}
+\overline{\Delta}_i=\mathrm{mean}_t(\Delta_{i,t})
 \]
 
-解释：
-- \(Y < 0\)：PERCENT 下排名更靠前（PERCENT 更"奖励"该类型）
-- \(Y > 0\)：PERCENT 下排名更靠后（PERCENT 更"惩罚"该类型）
-- \(Y = 0\)：两方法排名相同
+- \(\overline{\Delta}_i<0\)：judge-favored（评委更偏好）
+- \(\overline{\Delta}_i\approx 0\)：neutral
+- \(\overline{\Delta}_i>0\)：fan-favored（粉丝更偏好）
 
-### 2. 数据规模
-- **2777 个 contestant-week 记录**（逐周、逐人）
-- **30 个分箱**统计 \(E[Y\mid \Delta]\)（条件期望）
-- **21 个有效 bin**（样本数 ≥ 5）
+**(3) 赛季层面的“规则效应”（Y轴，核心修正）**
 
-### 3. 生成的可视化（2张图）
+\[
+Y_i=\mathrm{placement}_{PERCENT}(i)-\mathrm{placement}_{RANK}(i)
+\]
 
-#### 图1：Task2_1_unified_mechanism_curve.png（2D核心曲线）
-**布局**：3子图（GridSpec）
+- \(Y_i>0\)：PERCENT 让该选手最终名次更差（被“打压”）
+- \(Y_i<0\)：PERCENT 让该选手最终名次更好（被“提升”）
 
-**(a) 主曲线（上部大图）**：
-- 散点云（半透明背景）：所有 2777 个数据点
-- **粗实线 + 圆点**：分箱均值 \(E[Y\mid \Delta]\)（核心曲线）
-- **填充区域**：95% 置信区间
-- **虚线**：Spline 平滑趋势
-- **分区着色**：
-  - 粉紫区：Judge-Favored (\(\Delta < 0\))
-  - 浅薄荷区：Mild Fan-Favored (\(0 \le \Delta < 0.05\))
-  - 暖橙区：Extreme Fan-Favored (\(\Delta \ge 0.05\))
-- **关键点标注**：
-  - 红星：临界点（\(Y=0\)）
-  - 橙钻：最大值点
+## 2. 数据规模（两层粒度）
 
-**(b) 左下**：\(\Delta\) 的分布直方图
-- 显示大部分案例落在哪个区间
+- **周内层**：2777 条 contestant-week 记录，用于计算 \(\overline{\Delta}_i\)
+- **赛季层**：421 名选手（34 季），用于计算 \(Y_i\)
 
-**(c) 右下**：\(Y\) 的分布直方图
-- 显示 PERCENT 相对 RANK 的整体偏向
+## 3. 关键发现（来自 `unified_mechanism_summary.csv`）
 
-#### 图2：Task2_1_unified_3D_surface.png（3D + 辅助）
-**布局**：4子图
+| 类别 | n | mean \(Y\) | 解释 |
+|---|---:|---:|---|
+| Judge-Favored | 85 | **+0.153** | PERCENT 对评委偏好型选手**轻微打压** |
+| Neutral | 252 | -0.012 | 基本无差异 |
+| Fan-Favored | 84 | **-0.119** | PERCENT 对粉丝偏好型选手**轻微提升** |
 
-**(a) 3D 曲面（主图，占左侧2行）**：
-- X轴：\(\Delta\)（Fan - Judge）
-- Y轴：Judge Percent（评委集中度）
-- Z轴：\(Y\)（PERCENT - RANK）
-- 曲面用 RdYlGn_r 着色（红=PERCENT更差，绿=PERCENT更好）
-- 底部投影等高线
+整体上，\(Y\) 与 \(\overline{\Delta}\) 的相关性很弱（见图中线性回归与 Spearman rho），但**分类型方向稳定**：这为 Task 2.2 “争议集合会被放大”的结果提供了**全体样本层面的机制底座**。
 
-**(b) 右上**：按 Judge Percent 分层的曲线族
-- 不同 judge_percent 水平下，\(Y(\Delta)\) 的形状
+## 4. 与 Task 2.2 的关系（“放大镜”而非矛盾）
 
-**(d) 右下**：2D 密度热力图
-- KDE 核密度估计
-- 显示数据在 \((\Delta, Y)\) 平面的聚集区
+- Task 2.1（本节）给出的是**全体样本的平均效应**：方向存在但幅度小。
+- Task 2.2 只看**争议强度 top 25%**：把“本来就靠近临界边界的人”挑出来，效应自然被放大（因此出现 +2.2~+2.5 的大幅名次变化）。
 
----
+一句话：**2.1 提供“机制方向”，2.2 提供“在争议样本上的放大后果”。**
 
-## 得到的关键结果
+## 5. 生成的输出（图与CSV）
 
-### 区域统计（证明阈值效应）
+- `Task2_1_unified_mechanism_curve.png`：主图（421人散点 + 分类型箱线/分布）
+- `Task2_1_unified_3D_surface.png`：加入“judge水平”后的三维/分层视角（更偏机制展示）
+- `Task2_1_unified_supplementary.png`：补充分布与分箱曲线
+- `unified_mechanism_detailed.csv`：每位选手的 \(\overline{\Delta}_i\)、两种规则下 placement 与 \(Y_i\)
+- `unified_mechanism_summary.csv`：分类型汇总表（论文可直接引用）
 
-| 区域 | Δ 范围 | 样本数 | **平均 Y** | 解释 |
-|-----|--------|-------|-----------|------|
-| **Judge-Favored** | < 0 | 1392 | **+0.328** | PERCENT 让他们名次变差（惩罚judge-favored） |
-| **Mild Fan-Favored** | [0, 0.05) | 1260 | **-0.240** | PERCENT 让他们名次变好（奖励温和fan-favored） |
-| **Extreme Fan-Favored** | ≥ 0.05 | 125 | **-1.224** | PERCENT 让他们名次大幅变好？（意外！） |
+## 6. 可直接粘进论文的锚段（建议放在 Task 2.1→2.2 过渡处）
 
-### ⚠️ 重要发现（与预期部分相反）
-
-**预期**：极端 fan-favored 应该被 PERCENT 抑制（Y > 0）  
-**实际数据**：极端 fan-favored 反而在 PERCENT 下名次**更好**（Y = -1.224）
-
-这说明什么？
-
-#### 可能的解释（需进一步验证）
-
-1. **PERCENT 的"偏向 fan"效应在极端区更强**
-   - 当 \(\Delta\) 很大时，说明 \(F\) 远大于 \(J\)
-   - PERCENT 线性相加：极大的 \(F\) 主导合成分
-   - RANK 压缩：即使 \(F\) 很大，fan rank 也只是第1名（天花板效应）
-   - → PERCENT 反而更能"兑现"极端粉丝优势
-
-2. **"争议抑制"的机制不是通过"排名惩罚"**
-   - 你们 2.2 观察到的"PERCENT 对争议选手名次更差"（Δ(P-R) = +2）
-   - 可能来自**赛季最终 placement**（整季累积效应）
-   - 而逐周的 \(Y\)（当周排名差）可能方向相反
-
-3. **需要区分"当周排名"vs"最终 placement"**
-   - 当周：PERCENT 可能对极端粉丝优势更"响应"（Y < 0）
-   - 整季：但这些人常在 PERCENT 下"走钢丝"（margin 小），累积后更易被淘汰
-
-### 回归结果
-
-```
-Y = -14.038 * Δ - 0.153
-R^2 = 0.8763 (高度拟合！)
-p < 0.001 (极显著)
-```
-
-**负斜率**（-14.038）强烈：
-- \(\Delta\) 每增加 0.01（粉丝优势+1%），Y 下降 0.14（PERCENT 排名改善 0.14 位）
-- 这与"PERCENT 线性放大粉丝优势"的机制一致
-
----
-
-## 曲线形状的解读（修正版）
-
-### 实际观察到的模式（而非预期）
-
-```
-         Y (PERCENT - RANK)
-         ↑
-    +0.5 |     Judge-Favored区
-         |        (PERCENT惩罚)
-         |      ●
-     0.0 +━━━━●━━━━━━━━━━━━━━━━━━━━━━━━━→ Δ (Fan - Judge)
-         |          ●
-         |             ●  Mild Fan-Favored
-    -0.5 |                (PERCENT略奖励)
-         |                   
-    -1.0 |                      ● Extreme
-         |                         (PERCENT强奖励？)
-         |
-```
-
-### 这与你们其他结论的关系
-
-#### ✓ 仍能解释"PERCENT 更偏 fan"（FFI +0.093）
-- 大部分数据（1260 + 125 = 1385）落在 \(\Delta \ge 0\) 的 fan-favored 区
-- 这些区的平均 \(Y < 0\)（PERCENT 排名更好）
-- → 整体 FFI 偏正（更贴近粉丝排序）
-
-#### ⚠️ 但与"PERCENT 抑制争议"（Suppression +1.77）似乎矛盾
-
-**可能的解决方向**：
-1. **你们 2.2 的 Suppression 是"赛季最终名次"**，而这里的 Y 是"逐周排名"
-   - 极端 fan-favored 可能逐周排名好，但因 margin 小、累积风险高，整季更易被淘汰
-   
-2. **需要改用"赛季 placement"**而非"逐周 rank"作为 Y
-   - 当前脚本算的是每周的排名差
-   - 应该改成：该选手整季最终名次在两方法下的差异
-
-3. **或者加入"淘汰概率/margin"作为第二个因变量**
-   - \(Y_1\) = 排名差（当周）
-   - \(Y_2\) = margin 差（稳健性）
-   - 可能会看到：PERCENT 给极端 fan-favored 更好排名，但 margin 更小（更危险）
-
----
-
-## 我的建议（下一步优化）
-
-### 选项A：改成"赛季最终 placement"版本（最直接）
-把代码改成：
-- 对每个选手，找他所在赛季
-- 分别模拟该赛季在 RANK / PERCENT 下整季淘汰链
-- 记录最终 placement
-- \(Y = \text{placement}_{percent} - \text{placement}_{rank}\)（整季）
-- X 仍用赛季平均 \(\overline{\Delta}\)
-
-这样得到的曲线应该会符合"极端时 PERCENT 抑制（Y > 0）"的预期。
-
-### 选项B：双因变量（更完整）
-同时画两条曲线：
-- \(Y_1(\Delta)\)：当周排名差（已有）
-- \(Y_2(\Delta)\)：当周 margin 差（新增）
-
-可能会发现：
-- \(Y_1\) 在极端区偏负（PERCENT 当周排名更好）
-- 但 \(Y_2\) 在极端区也偏负（PERCENT 的 margin 更小/更危险）
-- → 解释"当周好、累积险"的矛盾
-
----
-
-## 当前结果的价值（即使与预期不完全一致）
-
-### 1. 高度显著的负相关（R^2 = 0.88）
-说明 **PERCENT 确实会随粉丝优势线性放大效应**，这本身就是"更偏 fan"的机制证据。
-
-### 2. 三区域的清晰差异
-- Judge-favored：Y = +0.33（PERCENT 惩罚）
-- Mild fan-favored：Y = -0.24（PERCENT 奖励）
-- Extreme fan-favored：Y = -1.22（PERCENT 强奖励）
-
-虽然极端区不是"抑制"，但至少证明了 **PERCENT 对不同 \(\Delta\) 的响应是非线性/分段的**。
-
-### 3. 曲线本身很美观、信息丰富
-- 可以作为"PERCENT 更偏 fan"的可视化证据
-- 需要配合你们 2.2 的"赛季级 Suppression"一起解释
-
----
-
-## 建议的论文写法（利用当前结果）
-
-> We define a unified metric \(\Delta = F - J\) to capture the fan-judge support gap. Plotting the conditional expectation \(E[Y\mid \Delta]\) where \(Y = r_{percent} - r_{rank}\), we observe a **strong negative correlation** (slope = -14.0, R² = 0.88, p < 0.001), confirming that PERCENT amplifies fan advantages linearly at the weekly level.
-
-> However, this weekly ranking advantage does not contradict PERCENT's controversy suppression at the **seasonal level** (SuppressionScore +1.77). The mechanism operates through **cumulative risk**: while PERCENT may rank extreme fan-favorites higher in individual weeks, their survival margins are systematically smaller (\(p^*_{percent} > p^*_{rank}\)), leading to higher elimination probability over the season.
+> We define a unified support-gap metric \(\overline{\Delta}_i=\mathrm{mean}_t(F_{i,t}-J_{i,t})\) and quantify the rule impact by the season-level placement difference \(Y_i=\mathrm{placement}_{PERCENT}-\mathrm{placement}_{RANK}\) obtained via full-season counterfactual elimination chains. Across all 421 contestants, the average effect is small but heterogeneous: judge-favored contestants are slightly suppressed (\(E[Y]=+0.153\)), fan-favored contestants are slightly promoted (\(E[Y]=-0.119\)), and the neutral group shows near-zero change. This “directional but weak” global pattern explains why the same mechanism becomes much stronger when we zoom into the high-controversy subset in Task 2.2.
 
 ---
 

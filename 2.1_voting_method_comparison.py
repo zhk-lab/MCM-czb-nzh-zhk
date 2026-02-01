@@ -267,8 +267,12 @@ def analyze_season(season, judge_scores_season, fan_shares_df):
         ffi_percent = d_percent_judge - d_percent_fan
         
         # 淘汰者
-        elim_rank = min(R_rank, key=R_rank.get)
-        elim_percent = min(R_percent, key=R_percent.get)
+        # NOTE:
+        # `compute_rankings()` assigns rank=1 to the best (highest score / highest combined),
+        # and larger ranks to worse contestants. Therefore the eliminated contestant is the
+        # one with the *largest* rank value, not the smallest.
+        elim_rank = max(R_rank, key=R_rank.get)
+        elim_percent = max(R_percent, key=R_percent.get)
         
         results.append({
             'season': season,
@@ -479,9 +483,11 @@ def generate_visualizations(analysis_df, save_dir):
 
 
 def main():
-    data_path = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\2026_MCM_Problem_C_Data.csv"
-    fan_shares_csv = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\fan_vote_shares.csv"
-    save_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk\task2_figures"
+    # Resolve paths relative to the repo root for reproducibility.
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(base_dir, "dataset", "2026_MCM_Problem_C_Data.csv")
+    fan_shares_csv = os.path.join(base_dir, "dataset", "fan_vote_shares.csv")
+    save_dir = os.path.join(base_dir, "2.1_figures")
     
     print("\n" + "=" * 60)
     print("TASK 2.1: VOTING METHOD COMPARISON ANALYSIS")
