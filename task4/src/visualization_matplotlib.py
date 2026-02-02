@@ -550,15 +550,18 @@ def create_bullet_chart_performance(metrics_df, save_dir):
 # ============================================================
 
 def main():
-    base_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk"
-    save_dir = os.path.join(base_dir, "4_figures")
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
+    table_dir = repo_root / "task4" / "table"
+    save_dir = repo_root / "task4" / "figure"
+    save_dir.mkdir(parents=True, exist_ok=True)
     
     print("\n" + "=" * 70)
     print("TASK 4: MATPLOTLIB NATIVE VISUALIZATIONS")
     print("=" * 70)
     
     # 加载数据
-    metrics_df = pd.read_csv(os.path.join(save_dir, "four_methods_metrics.csv"), index_col=0)
+    metrics_df = pd.read_csv(str(table_dir / "four_methods_metrics.csv"), index_col=0)
     
     print("\n  Generating matplotlib-native visualizations...")
     

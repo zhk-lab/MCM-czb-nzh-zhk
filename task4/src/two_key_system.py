@@ -27,12 +27,15 @@ def load_all_data(base_dir):
     print("DATA LOADING")
     print("=" * 70)
     
+    from pathlib import Path
+    base_path = Path(base_dir)
+    
     # 加载粉丝票份额（Task 1 估计结果）
-    fan_df = pd.read_csv(f"{base_dir}/dataset/fan_vote_shares.csv")
+    fan_df = pd.read_csv(str(base_path / "task1" / "table" / "fan_vote_shares.csv"))
     print(f"  Fan vote shares: {len(fan_df)} records")
     
     # 加载原始数据（评委分数）
-    data_df = pd.read_csv(f"{base_dir}/dataset/2026_MCM_Problem_C_Data.csv")
+    data_df = pd.read_csv(str(base_path / "2026_MCM_Problem_C_Data.csv"))
     
     # 构建评委周分数表（合并各评委分数）
     judge_data = []
@@ -145,13 +148,15 @@ def compute_risk_score(contestant, week_data, bottom_judge, bottom_fan, params=N
     
     p 为归一化差分位（0=最好，1=最差）
     
+    改进：加大 judge 权重以降低被操纵性
+    
     Parameters:
     -----------
     params : dict, optional
-        {'alpha': 风险分系数, 'beta': 双钥匙区 bonus}
+        {'alpha': 风险分系数, 'beta': 双钥匙区 bonus, 'judge_weight': 评委权重加成}
     """
     if params is None:
-        params = {'alpha': 0.3, 'beta': 0.5}
+        params = {'alpha': 0.3, 'beta': 0.5, 'judge_weight': 1.2}
     
     n = len(week_data)
     
@@ -163,8 +168,9 @@ def compute_risk_score(contestant, week_data, bottom_judge, bottom_fan, params=N
     p_J = (judge_rank - 1) / (n - 1) if n > 1 else 0
     p_F = (fan_rank - 1) / (n - 1) if n > 1 else 0
     
-    # 极端优先风险分（参数化）
-    risk = max(p_J, p_F) + params['alpha'] * min(p_J, p_F)
+    # 极端优先风险分（参数化，加大评委权重）
+    judge_weight = params.get('judge_weight', 1.2)
+    risk = max(judge_weight * p_J, p_F) + params['alpha'] * min(p_J, p_F)
     
     # 双钥匙成员额外风险（参数化）
     if contestant in bottom_judge and contestant in bottom_fan:
@@ -286,32 +292,47 @@ def check_save_ban(contestant, season, week, history_df, params=None):
 
 def live_save_simulation(bottom_3, season, week, panel, history_df, seed=42, params=None):
     """
-    Step D: 直播救援（修复 Jerry Rice 漏洞）
+    Step D: 直播救援（修复 Jerry Rice 漏洞 + 抗操纵强化）
     
     模拟直播窗口新增票，救 ΔV 最高者
-    禁止连续 N 周评委倒数第1者被救援
+    禁止条款（双重）：
+      1. 连续 N 周评委倒数第1者
+      2. 当周 judge_share < 全周 20% 分位者（救援资格底线）
     
     Parameters:
     -----------
     params : dict, optional
-        参数集合
+        参数集合（新增 'save_eligibility_threshold'）
     
     Returns:
     --------
     saved_contestant : str or None
     """
     if params is None:
-        params = {'ban_consecutive_weeks': 2}
+        params = {'ban_consecutive_weeks': 2, 'save_eligibility_threshold': 0.20}
     
     week_data = panel[(panel['season'] == season) & (panel['week'] == week)]
     
     np.random.seed(seed + season * 100 + week)
     
-    # 检查禁止救援条款
+    # 检查禁止救援条款 1：连续最差
     ban_list = []
     for contestant in bottom_3:
         if check_save_ban(contestant, season, week, history_df, params):
             ban_list.append(contestant)
+    
+    # 检查禁止救援条款 2：救援资格底线（judge_share 过低）
+    save_threshold = params.get('save_eligibility_threshold', 0.20)
+    if save_threshold > 0:
+        # 计算当周所有选手的 judge_share 分位数
+        week_judge_shares = week_data['judge_share'].values
+        threshold_value = np.percentile(week_judge_shares, save_threshold * 100)
+        
+        for contestant in bottom_3:
+            c_judge_share = week_data[week_data['celebrity_name'] == contestant]['judge_share'].values[0]
+            if c_judge_share < threshold_value:
+                if contestant not in ban_list:
+                    ban_list.append(contestant)
     
     eligible = [c for c in bottom_3 if c not in ban_list]
     
@@ -485,10 +506,11 @@ def simulate_all_seasons_two_key(panel, seed=42):
 # ============================================================
 
 def main():
-    base_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk"
+    from pathlib import Path
+    repo_root = Path(__file__).resolve().parents[2]
     
     # 加载数据
-    fan_df, judge_df, data_df = load_all_data(base_dir)
+    fan_df, judge_df, data_df = load_all_data(str(repo_root))
     
     # 创建周面板
     panel = create_weekly_panel(fan_df, judge_df)
@@ -498,8 +520,9 @@ def main():
     two_key_results = simulate_all_seasons_two_key(panel, seed=42)
     
     # 保存结果
-    output_path = os.path.join(base_dir, "4_figures", "two_key_elimination_records.csv")
-    two_key_results.to_csv(output_path, index=False)
+    output_path = repo_root / "task4" / "table" / "two_key_elimination_records.csv"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    two_key_results.to_csv(str(output_path), index=False)
     print(f"\n  Results saved to: {output_path}")
     
     print("\n" + "=" * 70)

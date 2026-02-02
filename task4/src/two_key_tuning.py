@@ -1,38 +1,29 @@
 """
-MCM 2026 Problem C - Task 4: TWO_KEY Parameter Tuning
-=====================================================
+MCM 2026 Problem C - Task 4: TWO_KEY Parameter Tuning (Measured Robustness)
+===========================================================================
 在 regime-shift 目标下优化 TWO_KEY 参数：
   - 目标1：最大化后争议阶段效用（legitimacy+robustness 高权重）
-  - 目标2：最大化跨阶段最差效用（worst-case robustness）
   - 约束：engagement >= 0.75（避免变成纯评委制）
+  - **Robustness 使用真实测量（flip-rate）**，不是 β 的启发式
 """
 
 import os
 import json
+import sys
 import numpy as np
 import pandas as pd
 from itertools import product
-import importlib.util
+from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
 
-base_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk"
+repo_root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(repo_root / "task4" / "src"))
+sys.path.insert(0, str(repo_root / "task2.3" / "src"))
 
-# 动态导入 Task2.3 的指标计算函数
-spec_task23 = importlib.util.spec_from_file_location(
-    "task23",
-    os.path.join(base_dir, "2.3_robust_recommendation.py")
-)
-task23 = importlib.util.module_from_spec(spec_task23)
-spec_task23.loader.exec_module(task23)
-
-# 动态导入 TWO_KEY 系统
-spec_twokey = importlib.util.spec_from_file_location(
-    "two_key_system",
-    os.path.join(base_dir, "4_two_key_system.py")
-)
-two_key_module = importlib.util.module_from_spec(spec_twokey)
-spec_twokey.loader.exec_module(two_key_module)
+from two_key_system import load_all_data, create_weekly_panel
+from robustness_testing import compute_flip_rate_two_key
+from robust_recommendation import compute_legitimacy_metric, compute_engagement_metric
 
 
 # ============================================================
@@ -40,11 +31,13 @@ spec_twokey.loader.exec_module(two_key_module)
 # ============================================================
 
 def generate_param_grid():
-    """生成参数网格（适中规模）"""
+    """生成参数网格（包含新参数）"""
     param_grid = {
-        'alpha': [0.2, 0.3, 0.4],  # 风险分系数
-        'beta': [0.4, 0.5, 0.6],   # 双钥匙区 bonus
+        'alpha': [0.3, 0.4, 0.5],  # 风险分系数
+        'beta': [0.5, 0.6, 0.7],   # 双钥匙区 bonus
         'ban_consecutive_weeks': [2, 3],  # 禁止救援触发周数
+        'save_eligibility_threshold': [0.15, 0.20],  # 救援资格底线
+        'judge_weight': [1.2, 1.3],  # 评委权重加成
     }
     
     # 生成所有组合
@@ -63,14 +56,16 @@ def generate_param_grid():
 # 计算参数组合的指标（快速版）
 # ============================================================
 
-def compute_metrics_for_params(params, panel_df, ffi_base, controversy_df):
+def compute_metrics_for_params(params, panel_df, controversy_df):
     """
-    对给定参数计算 TWO_KEY 的四大指标
+    对给定参数计算 TWO_KEY 的四大指标（使用真实 robustness 测试）
     
     Returns:
     --------
     dict with keys: legitimacy, engagement, robustness, transparency
     """
+    from scipy.stats import kendalltau
+    
     # 计算 FFI（使用参数化的 TWO_KEY）
     seasons = sorted(panel_df['season'].unique())
     ffi_records = []
@@ -93,8 +88,9 @@ def compute_metrics_for_params(params, panel_df, ffi_base, controversy_df):
             week_data['p_J'] = (week_data['judge_rank'] - 1) / (n - 1) if n > 1 else 0
             week_data['p_F'] = (week_data['fan_rank'] - 1) / (n - 1) if n > 1 else 0
             
-            # 使用参数化的 alpha
-            week_data['risk'] = week_data[['p_J', 'p_F']].max(axis=1) + params['alpha'] * week_data[['p_J', 'p_F']].min(axis=1)
+            # 使用参数化的 alpha 和 judge_weight
+            judge_weight = params.get('judge_weight', 1.2)
+            week_data['risk'] = np.maximum(judge_weight * week_data['p_J'], week_data['p_F']) + params['alpha'] * np.minimum(week_data['p_J'], week_data['p_F'])
             
             # 排序
             week_data = week_data.sort_values('risk')
@@ -108,8 +104,6 @@ def compute_metrics_for_params(params, panel_df, ffi_base, controversy_df):
             fan_ranking = sorted(fan_shares, key=fan_shares.get, reverse=True)
             
             # 计算 Kendall 距离
-            from scipy.stats import kendalltau
-            
             common = set(two_key_ranking) & set(judge_ranking) & set(fan_ranking)
             if len(common) < 2:
                 continue
@@ -134,15 +128,22 @@ def compute_metrics_for_params(params, panel_df, ffi_base, controversy_df):
     
     ffi_df = pd.DataFrame(ffi_records)
     
-    # 计算指标（复用 Task2.3 函数）
-    legitimacy = task23.compute_legitimacy_metric(ffi_df, controversy_df, 'ffi_rank')
-    engagement = task23.compute_engagement_metric(ffi_df, controversy_df, 'ffi_rank')
+    # 计算指标
+    legitimacy = compute_legitimacy_metric(ffi_df, controversy_df, 'ffi_rank')
+    engagement = compute_engagement_metric(ffi_df, controversy_df, 'ffi_rank')
     
-    # Robustness 简化估计（基于 beta 参数的保护强度）
-    base_robust = 0.757  # SAVE 的 robustness
-    robustness = min(base_robust + params['beta'] * 0.30, 0.95)
+    # Robustness 使用真实 flip-rate 测试（快速版：少量周）
+    print(".", end='', flush=True)
+    flip_result = compute_flip_rate_two_key(
+        panel_df,
+        perturbation_levels=[0.03],  # 只测中等扰动，加速
+        n_trials=10,  # 减少试验次数
+        seed=42,
+        params=params
+    )
+    robustness = flip_result['robustness_score']
     
-    # Transparency（与参数复杂度相关）
+    # Transparency
     transparency = 0.65
     
     return {
@@ -199,23 +200,20 @@ def evaluate_params(params, metrics):
 # ============================================================
 
 def grid_search_best_params():
-    """网格搜索最优参数"""
+    """网格搜索最优参数（使用真实 robustness 测试）"""
     print("\n" + "=" * 70)
-    print("TWO_KEY PARAMETER TUNING (Grid Search)")
+    print("TWO_KEY PARAMETER TUNING (Measured Robustness)")
     print("=" * 70)
     
     # 加载数据
-    fan_df, judge_df, data_df = two_key_module.load_all_data(base_dir)
-    panel = two_key_module.create_weekly_panel(fan_df, judge_df)
+    fan_df, judge_df, data_df = load_all_data(str(repo_root))
+    panel = create_weekly_panel(fan_df, judge_df)
     
-    ffi_base_path = os.path.join(base_dir, "dataset", "fan_vote_shares_analysis.csv")
-    ffi_base = pd.read_csv(ffi_base_path)
-    
-    controversy_path = os.path.join(base_dir, "2.2_figures", "controversy_all_contestants.csv")
-    if os.path.exists(controversy_path):
-        controversy_df = pd.read_csv(controversy_path)
+    controversy_path = repo_root / "task2.2" / "table" / "controversy_all_contestants.csv"
+    if controversy_path.exists():
+        controversy_df = pd.read_csv(str(controversy_path))
     else:
-        controversy_df = pd.read_csv(os.path.join(base_dir, "dataset", "controversy_identification.csv"))
+        controversy_df = pd.read_csv(str(repo_root / "task1" / "table" / "fan_vote_shares_analysis.csv"))
     
     # 生成参数网格
     param_combos = generate_param_grid()
@@ -228,7 +226,7 @@ def grid_search_best_params():
         print(f"\r  Progress: {idx+1}/{len(param_combos)}", end='')
         
         # 计算指标
-        metrics = compute_metrics_for_params(params, panel, ffi_base, controversy_df)
+        metrics = compute_metrics_for_params(params, panel, controversy_df)
         
         if metrics is None:
             continue
@@ -240,6 +238,8 @@ def grid_search_best_params():
             'alpha': params['alpha'],
             'beta': params['beta'],
             'ban_consecutive_weeks': params['ban_consecutive_weeks'],
+            'save_eligibility_threshold': params.get('save_eligibility_threshold', 0.20),
+            'judge_weight': params.get('judge_weight', 1.2),
             'legitimacy': metrics['legitimacy'],
             'engagement': metrics['engagement'],
             'robustness': metrics['robustness'],
@@ -257,6 +257,8 @@ def grid_search_best_params():
         'alpha': results_df.loc[best_idx, 'alpha'],
         'beta': results_df.loc[best_idx, 'beta'],
         'ban_consecutive_weeks': int(results_df.loc[best_idx, 'ban_consecutive_weeks']),
+        'save_eligibility_threshold': results_df.loc[best_idx, 'save_eligibility_threshold'],
+        'judge_weight': results_df.loc[best_idx, 'judge_weight'],
     }
     best_metrics = {
         'legitimacy': results_df.loc[best_idx, 'legitimacy'],
@@ -267,25 +269,28 @@ def grid_search_best_params():
     best_score = results_df.loc[best_idx, 'score']
     
     print("\n  Best Parameters Found:")
-    print(f"    alpha (risk coef):        {best_params['alpha']}")
-    print(f"    beta (two-key bonus):     {best_params['beta']}")
-    print(f"    ban_consecutive_weeks:    {best_params['ban_consecutive_weeks']}")
+    print(f"    alpha (risk coef):             {best_params['alpha']}")
+    print(f"    beta (two-key bonus):          {best_params['beta']}")
+    print(f"    ban_consecutive_weeks:         {best_params['ban_consecutive_weeks']}")
+    print(f"    save_eligibility_threshold:    {best_params.get('save_eligibility_threshold', 0.20)}")
+    print(f"    judge_weight:                  {best_params.get('judge_weight', 1.2)}")
     print(f"\n  Best Metrics:")
     print(f"    Legitimacy:   {best_metrics['legitimacy']:.4f}")
     print(f"    Engagement:   {best_metrics['engagement']:.4f}")
-    print(f"    Robustness:   {best_metrics['robustness']:.4f}")
+    print(f"    Robustness:   {best_metrics['robustness']:.4f} (MEASURED)")
     print(f"    Transparency: {best_metrics['transparency']:.4f}")
     print(f"\n  Best Score (regime-shift objective): {best_score:.4f}")
     
     # 保存结果
-    output_dir = os.path.join(base_dir, "4_figures")
+    output_dir = repo_root / "task4" / "table"
+    output_dir.mkdir(parents=True, exist_ok=True)
     
-    results_path = os.path.join(output_dir, "two_key_tuning_results.csv")
-    results_df.to_csv(results_path, index=False)
+    results_path = output_dir / "two_key_tuning_results.csv"
+    results_df.to_csv(str(results_path), index=False)
     print(f"\n  Saved tuning results: {results_path}")
     
-    params_path = os.path.join(output_dir, "two_key_best_params.json")
-    with open(params_path, 'w', encoding='utf-8') as f:
+    params_path = output_dir / "two_key_best_params.json"
+    with open(str(params_path), 'w', encoding='utf-8') as f:
         json.dump({'params': best_params, 'metrics': best_metrics, 'score': best_score}, f, indent=2, ensure_ascii=False)
     print(f"  Saved best params: {params_path}")
     

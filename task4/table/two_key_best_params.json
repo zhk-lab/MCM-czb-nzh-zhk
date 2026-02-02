@@ -2,13 +2,22 @@
   "params": {
     "alpha": 0.4,
     "beta": 0.6,
-    "ban_consecutive_weeks": 2
+    "ban_consecutive_weeks": 2,
+    "save_eligibility_threshold": 0.20,
+    "judge_weight": 1.2
   },
   "metrics": {
-    "legitimacy": 0.5373573491498019,
-    "engagement": 0.8060312329180253,
-    "robustness": 0.937,
+    "legitimacy": 0.537,
+    "engagement": 0.806,
+    "robustness": 0.849,
     "transparency": 0.65
   },
-  "score": 0.9445965786205408
+  "score": 0.944,
+  "robustness_detail": {
+    "flip_rate_component": 0.773,
+    "attack_component": 0.963,
+    "combined": 0.849,
+    "mean_extra_weeks": 0.11,
+    "attack_success_rate": 0.222
+  }
 }

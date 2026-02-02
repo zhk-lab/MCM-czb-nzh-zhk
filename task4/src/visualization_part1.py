@@ -441,27 +441,28 @@ def create_sunburst_decision_tree(two_key_df, save_dir):
 # ============================================================
 
 def main():
-    base_dir = r"c:\Users\zhaoh\Desktop\MCM-czb-nzh-zhk"
-    save_dir = os.path.join(base_dir, "4_figures")
+    from pathlib import Path
+    import sys
+    
+    repo_root = Path(__file__).resolve().parents[2]
+    sys.path.insert(0, str(repo_root / "task4" / "src"))
+    
+    table_dir = repo_root / "task4" / "table"
+    save_dir = repo_root / "task4" / "figure"
+    save_dir.mkdir(parents=True, exist_ok=True)
     
     print("\n" + "=" * 70)
     print("TASK 4: VISUALIZATION PART 1 (Advanced Charts)")
     print("=" * 70)
     
     # 加载数据
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "two_key_system",
-        os.path.join(base_dir, "4_two_key_system.py")
-    )
-    two_key_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(two_key_module)
+    from two_key_system import load_all_data, create_weekly_panel
     
-    fan_df, judge_df, data_df = two_key_module.load_all_data(base_dir)
-    panel_df = two_key_module.create_weekly_panel(fan_df, judge_df)
+    fan_df, judge_df, data_df = load_all_data(str(repo_root))
+    panel_df = create_weekly_panel(fan_df, judge_df)
     
-    two_key_df = pd.read_csv(os.path.join(save_dir, "two_key_elimination_records.csv"))
-    comparison_df = pd.read_csv(os.path.join(save_dir, "four_methods_comparison.csv"))
+    two_key_df = pd.read_csv(str(table_dir / "two_key_elimination_records.csv"))
+    comparison_df = pd.read_csv(str(table_dir / "four_methods_comparison.csv"))
     
     # 生成可视化
     print("\n  Generating visualizations...")
