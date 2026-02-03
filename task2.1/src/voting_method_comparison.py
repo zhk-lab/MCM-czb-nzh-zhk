@@ -9,6 +9,7 @@ import os
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.colors import LinearSegmentedColormap
 from pathlib import Path
 from scipy.stats import kendalltau, spearmanr
 from collections import defaultdict
@@ -307,28 +308,71 @@ def generate_visualizations(analysis_df, save_dir):
     pivot_rank = analysis_df.pivot_table(values='ffi_rank', index='week', columns='season', aggfunc='mean')
     pivot_percent = analysis_df.pivot_table(values='ffi_percent', index='week', columns='season', aggfunc='mean')
     
+    plt.rcParams['font.family'] = ['Times New Roman', 'DejaVu Serif']
     im1 = axes[0].imshow(pivot_rank.values, cmap='RdYlGn', aspect='auto', vmin=-0.5, vmax=0.5)
-    axes[0].set_title('(a) FFI - RANK Method', fontsize=14, fontweight='bold', pad=10)
-    axes[0].set_xlabel('Season', fontsize=12, fontweight='bold')
-    axes[0].set_ylabel('Week', fontsize=12, fontweight='bold')
+    axes[0].set_title('(a) FFI - RANK Method', fontsize=18, fontweight='normal', pad=10)
+    axes[0].set_xlabel('Season', fontsize=16, fontweight='normal')
+    axes[0].set_ylabel('Week', fontsize=16, fontweight='normal')
     axes[0].set_xticks(range(len(pivot_rank.columns)))
     axes[0].set_xticklabels(pivot_rank.columns, fontsize=8)
     axes[0].set_yticks(range(len(pivot_rank.index)))
     axes[0].set_yticklabels(pivot_rank.index)
-    plt.colorbar(im1, ax=axes[0], label='FFI (>0: favor fans)')
     
     im2 = axes[1].imshow(pivot_percent.values, cmap='RdYlGn', aspect='auto', vmin=-0.5, vmax=0.5)
-    axes[1].set_title('(b) FFI - PERCENT Method', fontsize=14, fontweight='bold', pad=10)
-    axes[1].set_xlabel('Season', fontsize=12, fontweight='bold')
-    axes[1].set_ylabel('Week', fontsize=12, fontweight='bold')
+    axes[1].set_title('(b) FFI - PERCENT Method', fontsize=18, fontweight='normal', pad=10)
+    axes[1].set_xlabel('Season', fontsize=16, fontweight='normal')
+    axes[1].set_ylabel('Week', fontsize=16, fontweight='normal')
     axes[1].set_xticks(range(len(pivot_percent.columns)))
     axes[1].set_xticklabels(pivot_percent.columns, fontsize=8)
     axes[1].set_yticks(range(len(pivot_percent.index)))
     axes[1].set_yticklabels(pivot_percent.index)
-    plt.colorbar(im2, ax=axes[1], label='FFI (>0: favor fans)')
+    fig.subplots_adjust(right=0.84)
+    cax = fig.add_axes([0.87, 0.15, 0.015, 0.7])
+    cbar = plt.colorbar(im2, cax=cax)
+    cbar.ax.tick_params(labelsize=12)
+    cbar.outline.set_visible(False)
+    cbar.ax.set_frame_on(False)
     
+    plt.savefig(f'{save_dir}/Task2_1_FFI_heatmap (1).png', dpi=300, facecolor='white', bbox_inches='tight')
+    plt.close()
+
+    # 图1b: FFI 热力图（论文配色 + 常规字重）
+    print("  [1b/5] FFI Heatmap (paper palette)...")
+    paper_cmap = LinearSegmentedColormap.from_list(
+        'paper_blues', ['#ffffff', '#d6dadd', '#9cb0ce', '#45618a']
+    )
+    plt.rcParams['font.family'] = ['Times New Roman', 'DejaVu Serif']
+    fig, axes = plt.subplots(1, 2, figsize=(16, 6), facecolor='white')
+
+    im1 = axes[0].imshow(pivot_rank.values, cmap=paper_cmap, aspect='auto', vmin=-0.5, vmax=0.5)
+    axes[0].set_title('(a) FFI - RANK Method', fontsize=14, fontweight='normal', pad=10)
+    axes[0].set_xlabel('Season', fontsize=12, fontweight='normal')
+    axes[0].set_ylabel('Week', fontsize=12, fontweight='normal')
+    axes[0].set_xticks(range(len(pivot_rank.columns)))
+    axes[0].set_xticklabels(pivot_rank.columns, fontsize=8)
+    axes[0].set_yticks(range(len(pivot_rank.index)))
+    axes[0].set_yticklabels(pivot_rank.index)
+    axes[0].tick_params(axis='both', labelsize=13)
+    axes[1].tick_params(axis='both', labelsize=13)
+    for ax in axes:
+        for spine in ax.spines.values():
+            spine.set_linewidth(0.6)
+            spine.set_color('#666666')
+
+    im2 = axes[1].imshow(pivot_percent.values, cmap=paper_cmap, aspect='auto', vmin=-0.5, vmax=0.5)
+    axes[1].set_title('(b) FFI - PERCENT Method', fontsize=14, fontweight='normal', pad=10)
+    axes[1].set_xlabel('Season', fontsize=12, fontweight='normal')
+    axes[1].set_ylabel('Week', fontsize=12, fontweight='normal')
+    axes[1].set_xticks(range(len(pivot_percent.columns)))
+    axes[1].set_xticklabels(pivot_percent.columns, fontsize=8)
+    axes[1].set_yticks(range(len(pivot_percent.index)))
+    axes[1].set_yticklabels(pivot_percent.index)
+    cbar = plt.colorbar(im2, ax=axes[1], label='FFI (>0: favor fans)')
+    cbar.ax.tick_params(labelsize=12)
+    cbar.set_label('FFI (>0: favor fans)', fontsize=14, fontweight='normal')
+
     plt.tight_layout()
-    plt.savefig(f'{save_dir}/Task2_1_FFI_heatmap.png', dpi=300, facecolor='white')
+    plt.savefig(f'{save_dir}/Task2_1_FFI_heatmap_paper.png', dpi=300, facecolor='white')
     plt.close()
     
     # 图2: FFI 对比箱线图

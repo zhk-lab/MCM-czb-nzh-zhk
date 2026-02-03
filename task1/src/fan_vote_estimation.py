@@ -14,6 +14,8 @@ MCM 2026 Problem C - Fan Vote Estimation (优化版 V2)
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import patheffects as pe
+from matplotlib.colors import LinearSegmentedColormap
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
@@ -23,8 +25,27 @@ warnings.filterwarnings('ignore')
 # 固定随机种子，确保结果可重复
 np.random.seed(42)
 
-plt.rcParams['font.family'] = ['DejaVu Sans', 'Arial', 'sans-serif']
+plt.rcParams['font.family'] = ['Times New Roman', 'Times', 'DejaVu Serif']
 plt.rcParams['axes.unicode_minus'] = False
+
+# Paper-style palette (matched to image.png)
+PAPER_LIGHT = '#cad3e0'
+PAPER_MID = '#9cb0ce'
+PAPER_DARK = '#45618a'
+PAPER_GRAY = '#b4b4b6'
+PAPER_TEXT = '#222222'
+PAPER_CMAP = LinearSegmentedColormap.from_list(
+    'paper_blues', [PAPER_LIGHT, PAPER_MID, PAPER_DARK]
+)
+
+
+def apply_shadow_to_patches(patches, offset=(2, -2), alpha=0.25):
+    """Apply subtle paper-style shadow to bars/patches."""
+    for patch in patches:
+        patch.set_path_effects([
+            pe.SimplePatchShadow(offset=offset, alpha=alpha, shadow_rgbFace=(0, 0, 0)),
+            pe.Normal(),
+        ])
 
 # ============================================================
 # 1. 数据预处理
@@ -598,28 +619,80 @@ def evaluate_consistency_v2(map_result: Dict, sampled_data: Dict) -> Dict:
 def visualize_results_v2(sampled_data: Dict, map_result: Dict, consistency: Dict, 
                          season_num: int, save_prefix: str):
     """多维度可视化"""
-    
-    fig = plt.figure(figsize=(16, 12))
-    
-    # 1. 粉丝投票份额演变 + 置信区间
-    ax1 = fig.add_subplot(2, 2, 1)
+
+    # Keep ONLY the top two panels (2×1 row): evolution + uncertainty
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
     path = map_result['path']
     
     if path:
-        # ---- Build consistent color mapping (used by ax1 and ax3) ----
+        # ---- Build consistent color mapping ----
         all_contestants = sorted({name for p in path for name in p['active']})
         n_all = len(all_contestants)
-        if n_all <= 20:
-            palette = plt.cm.tab20(np.linspace(0, 1, 20))
-        else:
-            palette = plt.cm.hsv(np.linspace(0, 1, n_all))
-        color_map = {name: palette[i % len(palette)] for i, name in enumerate(all_contestants)}
+        # Use Matplotlib's default categorical palette so lines are clearly distinguishable
+        base_colors = plt.rcParams['axes.prop_cycle'].by_key().get('color', [])
+        if not base_colors:
+            base_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                           '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        color_map = {name: base_colors[i % len(base_colors)] for i, name in enumerate(all_contestants)}
 
         # x-axis should span from week1 to finals week (last week in path)
         final_week = max(p['week'] for p in path)
 
-        # Plot ALL contestants; each line naturally stops after elimination
-        for contestant in all_contestants:
+        # Select 4–5 representative contestants to avoid clutter
+        def _series_for(name: str):
+            ws, shares, lows, highs = [], [], [], []
+            for p in path:
+                if name in p['active']:
+                    idx = p['active'].index(name)
+                    ws.append(p['week'])
+                    shares.append(p['fan_shares'][idx])
+                    lows.append(p['ci_low'][idx])
+                    highs.append(p['ci_high'][idx])
+            return ws, shares, lows, highs
+
+        stats = []
+        for name in all_contestants:
+            ws, shares, lows, highs = _series_for(name)
+            if not shares:
+                continue
+            ciw = [h - l for h, l in zip(highs, lows)]
+            stats.append({
+                'name': name,
+                'len': len(shares),
+                'last': shares[-1],
+                'range': (max(shares) - min(shares)) if len(shares) > 1 else 0.0,
+                'mean_ciw': float(np.mean(ciw)) if ciw else 0.0,
+            })
+
+        if season_num == 1:
+            # Season 1: show all contestants (no representative filtering)
+            selected = all_contestants
+        else:
+            selected: List[str] = []
+            # Top by final vote share
+            for s in sorted(stats, key=lambda d: d['last'], reverse=True)[:2]:
+                if s['name'] not in selected:
+                    selected.append(s['name'])
+            # Most volatile
+            for s in sorted(stats, key=lambda d: d['range'], reverse=True):
+                if s['name'] not in selected:
+                    selected.append(s['name'])
+                    break
+            # Most uncertain (avg CI width)
+            for s in sorted(stats, key=lambda d: d['mean_ciw'], reverse=True):
+                if s['name'] not in selected:
+                    selected.append(s['name'])
+                    break
+            # Earliest eliminated (shortest trajectory)
+            for s in sorted(stats, key=lambda d: d['len']):
+                if s['name'] not in selected:
+                    selected.append(s['name'])
+                    break
+            selected = selected[:5]
+
+        # Plot only selected contestants; each line naturally stops after elimination
+        for contestant in selected:
             shares = []
             ci_lows = []
             ci_highs = []
@@ -646,25 +719,17 @@ def visualize_results_v2(sampled_data: Dict, map_result: Dict, consistency: Dict
                     alpha=0.95,
                 )
                 # Keep CI but reduce opacity to avoid clutter with many contestants
-                ax1.fill_between(ws, ci_lows, ci_highs, alpha=0.08, color=c, linewidth=0)
+                ax1.fill_between(ws, ci_lows, ci_highs, alpha=0.12, color=c, linewidth=0)
         
         ax1.set_xlabel('Week', fontsize=12)
         ax1.set_ylabel('Fan Vote Share', fontsize=12)
         ax1.set_title(f'Season {season_num}: Fan Vote Evolution (MAP + 90% CI)', fontsize=14)
         ax1.set_xlim(1, final_week)
         ax1.set_xticks(list(range(1, final_week + 1)))
-        # Legend can be large; place outside and use multiple columns
-        ax1.legend(
-            loc='upper left',
-            bbox_to_anchor=(1.02, 1.0),
-            fontsize=7,
-            ncol=1,
-            frameon=True,
-        )
-        ax1.grid(True, alpha=0.3)
+        ax1.legend(loc='upper left', fontsize=9, frameon=True)
+        ax1.grid(False)
     
     # 2. 不确定性分析
-    ax2 = fig.add_subplot(2, 2, 2)
     week_metrics = consistency['week_metrics']
     
     if week_metrics:
@@ -673,93 +738,22 @@ def visualize_results_v2(sampled_data: Dict, map_result: Dict, consistency: Dict
         ci_widths = [m['ci_width'] for m in week_metrics]
         correctness = [1 if m['correct'] else 0 for m in week_metrics]
         
-        ax2.bar(weeks_m, uncertainties, alpha=0.7, label='Std Dev', color='steelblue')
-        ax2.plot(weeks_m, ci_widths, 'r-s', label='90% CI Width', linewidth=2)
+        # Keep the original visual semantics: blue bars + red CI line
+        ax2.bar(weeks_m, uncertainties, alpha=0.65, label='Std Dev', color='#4C78A8')
+        ax2.plot(weeks_m, ci_widths, color='#E45756', marker='s', label='90% CI Width', linewidth=2)
         
-        # 标记正确/错误预测
+        # 标记正确/错误预测（用可显示的符号）
         for w, c, u in zip(weeks_m, correctness, uncertainties):
-            marker = '✓' if c else '✗'
-            color = 'green' if c else 'red'
-            ax2.annotate(marker, (w, u + 0.02), ha='center', fontsize=12, color=color)
+            marker = r'$\checkmark$' if c else r'$\times$'
+            color = '#2CA02C' if c else '#D62728'
+            ax2.scatter([w], [u + 0.02], marker=marker, color=color, s=90, zorder=5)
         
         ax2.set_xlabel('Week', fontsize=12)
         ax2.set_ylabel('Uncertainty', fontsize=12)
         ax2.set_title(f'Season {season_num}: Uncertainty Analysis', fontsize=14)
         ax2.legend(loc='upper right')
-        ax2.grid(True, alpha=0.3)
-    
-    # 3. 可行域采样分布热力图
-    ax3 = fig.add_subplot(2, 2, 3)
-    weeks_sampled = sampled_data['weeks']
-    
-    if weeks_sampled and len(weeks_sampled) >= 3:
-        mid_idx = len(weeks_sampled) // 2
-        week_sample = weeks_sampled[mid_idx]
-        samples = week_sample['samples']
-        active = week_sample['active']
-        
-        # Include ALL contestants still active up to this week
-        n_show = len(active)
-        box_data = [samples[:, i] for i in range(n_show)]
-        labels = [a for a in active]
-        
-        bp = ax3.boxplot(box_data, labels=labels, patch_artist=True, showfliers=False)
-        # Color must match ax1
-        # If path is empty, fall back to Set3 palette
-        if path:
-            for patch, name in zip(bp['boxes'], active):
-                patch.set_facecolor(color_map.get(name, (0.7, 0.7, 0.7, 1.0)))
-                patch.set_alpha(0.85)
-        else:
-            colors = plt.cm.Set3(np.linspace(0, 1, max(3, n_show)))
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
-        
-        # 标记被淘汰者
-        elim = week_sample['eliminated']
-        elim_names = elim if isinstance(elim, list) else [elim] if elim else []
-        for en in elim_names:
-            if en in active[:n_show]:
-                idx = active.index(en)
-                ax3.axvline(x=idx + 1, color='red', linestyle='--', alpha=0.7)
-        
-        ax3.set_ylabel('Fan Vote Share', fontsize=12)
-        ax3.set_title(f'Week {week_sample["week"]}: Posterior Distribution (Red=Eliminated)', fontsize=14)
-        ax3.tick_params(axis='x', rotation=60, labelsize=8)
-        ax3.grid(True, alpha=0.3, axis='y')
-    
-    # 4. 一致性汇总
-    ax4 = fig.add_subplot(2, 2, 4)
-    
-    accuracy = consistency['accuracy']
-    ax4.bar(['Elimination\nPrediction'], [accuracy * 100], color='green' if accuracy >= 0.6 else 'orange', 
-            alpha=0.7, width=0.4, edgecolor='black')
-    ax4.axhline(y=100, color='gray', linestyle='--', alpha=0.5)
-    ax4.axhline(y=50, color='red', linestyle=':', alpha=0.5, label='Random baseline')
-    
-    ax4.text(0, accuracy * 100 + 5, f'{accuracy:.1%}', ha='center', fontsize=16, fontweight='bold')
-    
-    mean_unc = np.mean([m['mean_uncertainty'] for m in week_metrics]) if week_metrics else 0
-    mean_ci = np.mean([m['ci_width'] for m in week_metrics]) if week_metrics else 0
-    
-    info_text = f"""
-Season: {season_num}
-Method: {sampled_data['method'].upper()}
-Weeks: {len(weeks_sampled)}
+        ax2.grid(False)
 
-Correct: {consistency['correct']}/{consistency['total']}
-
-Avg Uncertainty: {mean_unc:.4f}
-Avg 90% CI Width: {mean_ci:.4f}
-"""
-    ax4.text(0.5, 50, info_text, ha='center', fontsize=10, 
-             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
-    
-    ax4.set_ylim(0, 120)
-    ax4.set_ylabel('Accuracy (%)', fontsize=12)
-    ax4.set_title(f'Season {season_num}: Model Performance', fontsize=14)
-    ax4.legend(loc='upper right')
-    
     plt.tight_layout()
     plt.savefig(f'{save_prefix}_season{season_num}.png', dpi=150, bbox_inches='tight')
     plt.close()
@@ -769,50 +763,43 @@ Avg 90% CI Width: {mean_ci:.4f}
 def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str):
     """跨赛季汇总可视化 - 美赛O奖标准美化版"""
     
-    # 专业配色方案（学术论文风格）
-    COLOR_PRIMARY = '#2E86AB'      # 主色：深蓝
-    COLOR_SECONDARY = '#A23B72'    # 辅色：紫红
-    COLOR_ACCENT = '#F18F01'       # 强调色：橙色
-    COLOR_SUCCESS = '#4CAF50'      # 成功：绿色
-    COLOR_NEUTRAL = '#607D8B'      # 中性：灰蓝
-    COLOR_BG = '#FAFAFA'           # 背景：浅灰
-    
     # 设置全局字体
     plt.rcParams['font.size'] = 11
     plt.rcParams['axes.titlesize'] = 13
     plt.rcParams['axes.labelsize'] = 11
     
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10), facecolor='white')
+    fig, axes = plt.subplots(2, 1, figsize=(10, 10), facecolor='white')
     fig.patch.set_facecolor('white')
     
     seasons = [r['season'] for r in all_results]
     accuracies = [r['consistency']['accuracy'] * 100 for r in all_results]
-    mean_uncertainties = [np.mean([m['mean_uncertainty'] for m in r['consistency']['week_metrics']]) 
-                          if r['consistency']['week_metrics'] else 0 for r in all_results]
     
     # ===================== 1. 各赛季预测准确率 =====================
-    ax1 = axes[0, 0]
-    ax1.set_facecolor(COLOR_BG)
+    ax1 = axes[0]
+    ax1.set_facecolor('white')
     
-    # 根据准确率设置渐变色
-    colors = [COLOR_SUCCESS if a >= 95 else COLOR_PRIMARY if a >= 80 else COLOR_ACCENT for a in accuracies]
-    bars = ax1.bar(seasons, accuracies, color=colors, alpha=0.85, edgecolor='white', linewidth=0.5)
+    # 根据准确率设置渐变色（严格使用论文蓝色系）
+    acc_min = min(accuracies) if accuracies else 0
+    acc_max = max(accuracies) if accuracies else 100
+    acc_scale = [(a - acc_min) / (acc_max - acc_min + 1e-9) for a in accuracies]
+    colors = [PAPER_CMAP(0.2 + 0.7 * s) for s in acc_scale]
+    bars = ax1.bar(seasons, accuracies, color=colors, alpha=0.9, edgecolor='white', linewidth=0.5)
+    apply_shadow_to_patches(bars)
     
     # 均值线
     mean_acc = np.mean(accuracies)
-    ax1.axhline(y=mean_acc, color=COLOR_SECONDARY, linestyle='--', linewidth=2, alpha=0.8,
+    ax1.axhline(y=mean_acc, color=PAPER_DARK, linestyle='--', linewidth=2, alpha=0.8,
                 label=f'Mean: {mean_acc:.1f}%')
-    ax1.axhline(y=50, color=COLOR_NEUTRAL, linestyle=':', alpha=0.5, label='Random Baseline')
+    ax1.axhline(y=50, color=PAPER_GRAY, linestyle=':', alpha=0.7, label='Random Baseline')
     
     ax1.set_xlabel('Season', fontsize=11, fontweight='medium')
     ax1.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
-    ax1.set_title('(a) Elimination Prediction Accuracy by Season', fontsize=13, fontweight='bold', pad=10)
     ax1.legend(loc='lower right', framealpha=0.95, fontsize=9)
     ax1.set_ylim(0, 110)
     ax1.set_xlim(0, max(seasons) + 1)
     
     # 精简网格
-    ax1.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax1.grid(False)
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
     
@@ -822,36 +809,9 @@ def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str)
             ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1.5, 
                     f'{acc:.0f}', ha='center', fontsize=8, color='#333')
     
-    # ===================== 2. 不确定性 vs 准确率 =====================
-    ax2 = axes[0, 1]
-    ax2.set_facecolor(COLOR_BG)
-    
-    # 使用更优雅的色图
-    scatter = ax2.scatter(mean_uncertainties, accuracies, c=seasons, cmap='coolwarm', 
-                          s=120, edgecolors='white', linewidth=1.2, alpha=0.9)
-    
-    # 趋势线
-    z = np.polyfit(mean_uncertainties, accuracies, 1)
-    p = np.poly1d(z)
-    x_line = np.linspace(min(mean_uncertainties), max(mean_uncertainties), 100)
-    ax2.plot(x_line, p(x_line), color=COLOR_SECONDARY, linestyle='--', linewidth=2, alpha=0.7, label='Trend')
-    
-    ax2.set_xlabel('Mean Uncertainty (σ)', fontsize=11, fontweight='medium')
-    ax2.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
-    ax2.set_title('(b) Uncertainty vs Prediction Accuracy', fontsize=13, fontweight='bold', pad=10)
-    
-    cbar = plt.colorbar(scatter, ax=ax2, shrink=0.8, aspect=20)
-    cbar.set_label('Season', fontsize=10)
-    cbar.ax.tick_params(labelsize=9)
-    
-    ax2.legend(loc='lower left', framealpha=0.95, fontsize=9)
-    ax2.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-    ax2.spines['top'].set_visible(False)
-    ax2.spines['right'].set_visible(False)
-    
-    # ===================== 3. 赛制方法比较 =====================
-    ax3 = axes[1, 0]
-    ax3.set_facecolor(COLOR_BG)
+    # ===================== 2. 赛制方法比较 =====================
+    ax3 = axes[1]
+    ax3.set_facecolor('white')
     
     rank_results = [r for r in all_results if r['method'] == 'rank']
     percent_results = [r for r in all_results if r['method'] == 'percent']
@@ -863,17 +823,17 @@ def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str)
     means = [np.mean(rank_acc) if rank_acc else 0, np.mean(percent_acc) if percent_acc else 0]
     stds = [np.std(rank_acc) if rank_acc else 0, np.std(percent_acc) if percent_acc else 0]
     
-    bar_colors = [COLOR_ACCENT, COLOR_PRIMARY]
-    bars = ax3.bar(x_pos, means, yerr=stds, color=bar_colors, alpha=0.85, 
+    bar_colors = [PAPER_MID, PAPER_DARK]
+    bars = ax3.bar(x_pos, means, yerr=stds, color=bar_colors, alpha=0.9,
                    edgecolor='white', capsize=6, linewidth=0.5, width=0.5,
-                   error_kw={'linewidth': 1.5, 'capthick': 1.5, 'ecolor': '#333'})
+                   error_kw={'linewidth': 1.5, 'capthick': 1.5, 'ecolor': PAPER_GRAY})
+    apply_shadow_to_patches(bars)
     
     ax3.set_xticks(x_pos)
     ax3.set_xticklabels([f'RANK\n(n={len(rank_acc)})', f'PERCENT\n(n={len(percent_acc)})'], fontsize=10)
     ax3.set_ylabel('Accuracy (%)', fontsize=11, fontweight='medium')
-    ax3.set_title('(c) Performance Comparison by Voting Method', fontsize=13, fontweight='bold', pad=10)
     ax3.set_ylim(0, 110)
-    ax3.grid(True, alpha=0.3, axis='y', linestyle='-', linewidth=0.5)
+    ax3.grid(False)
     ax3.spines['top'].set_visible(False)
     ax3.spines['right'].set_visible(False)
     
@@ -881,55 +841,7 @@ def visualize_cross_season_summary_v2(all_results: List[Dict], save_prefix: str)
         ax3.text(bar.get_x() + bar.get_width()/2, bar.get_height() + std + 2, 
                 f'{mean:.1f}%', ha='center', fontsize=12, fontweight='bold', color='#333')
     
-    # ===================== 4. 性能总结表格 =====================
-    ax4 = axes[1, 1]
-    ax4.axis('off')
-    ax4.set_facecolor('white')
-    
-    overall_acc = np.mean(accuracies)
-    best_idx = np.argmax(accuracies)
-    num_perfect = sum(1 for a in accuracies if a == 100)
-    
-    # 创建表格数据
-    table_data = [
-        ['Metric', 'Value'],
-        ['Seasons Analyzed', f'{len(all_results)}'],
-        ['Overall Accuracy', f'{overall_acc:.1f}%'],
-        ['Perfect Predictions (100%)', f'{num_perfect}/{len(all_results)}'],
-        ['', ''],
-        ['RANK Method (S1-2, S28+)', f'{np.mean(rank_acc):.1f}% ± {np.std(rank_acc):.1f}%'],
-        ['PERCENT Method (S3-27)', f'{np.mean(percent_acc):.1f}% ± {np.std(percent_acc):.1f}%'],
-        ['', ''],
-        ['Avg Uncertainty', f'{np.mean(mean_uncertainties):.4f}'],
-    ]
-    
-    # 绘制表格
-    table = ax4.table(cellText=table_data, loc='center', cellLoc='left',
-                      colWidths=[0.55, 0.35])
-    table.auto_set_font_size(False)
-    table.set_fontsize(11)
-    table.scale(1.2, 1.8)
-    
-    # 设置表格样式
-    for i, key in enumerate(table.get_celld().keys()):
-        cell = table[key]
-        cell.set_edgecolor('#E0E0E0')
-        if key[0] == 0:  # 标题行
-            cell.set_facecolor(COLOR_PRIMARY)
-            cell.set_text_props(color='white', fontweight='bold')
-        elif key[0] in [4, 7]:  # 空行
-            cell.set_facecolor('white')
-            cell.set_edgecolor('white')
-        else:
-            cell.set_facecolor('#F5F5F5' if key[0] % 2 == 0 else 'white')
-    
-    ax4.set_title('(d) Model Performance Summary', fontsize=13, fontweight='bold', pad=20)
-    
-    # 添加总标题
-    fig.suptitle('Fan Vote Estimation Model: Cross-Season Validation Results', 
-                 fontsize=16, fontweight='bold', y=0.98)
-    
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    plt.tight_layout()
     plt.savefig(f'{save_prefix}_summary.png', dpi=300, bbox_inches='tight', 
                 facecolor='white', edgecolor='none')
     plt.close()
@@ -1053,7 +965,7 @@ def visualize_certainty_heatmap(sampled_data: Dict, map_result: Dict,
     
     # 左图：Std Dev 热力图
     ax1 = axes[0]
-    im1 = ax1.imshow(std_matrix, aspect='auto', cmap='YlOrRd', 
+    im1 = ax1.imshow(std_matrix, aspect='auto', cmap=PAPER_CMAP,
                      vmin=vmin_std, vmax=vmax_std)
     ax1.set_xticks(range(n_weeks))
     ax1.set_xticklabels(all_weeks)
@@ -1077,7 +989,7 @@ def visualize_certainty_heatmap(sampled_data: Dict, map_result: Dict,
     
     # 右图：CI Width 热力图
     ax2 = axes[1]
-    im2 = ax2.imshow(ci_matrix, aspect='auto', cmap='YlGnBu',
+    im2 = ax2.imshow(ci_matrix, aspect='auto', cmap=PAPER_CMAP,
                      vmin=vmin_ci, vmax=vmax_ci)
     ax2.set_xticks(range(n_weeks))
     ax2.set_xticklabels(all_weeks)

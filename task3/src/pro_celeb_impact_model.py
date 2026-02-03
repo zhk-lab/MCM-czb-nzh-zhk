@@ -843,51 +843,83 @@ def create_violin_distribution(panel_df, save_dir):
 def create_rho_scatter(contestant_effects, rho, save_dir):
     """图4: 随机效应散点图（识别争议选手）"""
     print("\n  [4/6] Creating Random Effects Scatter Plot...")
-    
-    fig, ax = plt.subplots(figsize=(12, 10), facecolor='white')
-    ax.set_facecolor(COLORS['bg'])
-    
-    # 按placement着色
-    scatter = ax.scatter(contestant_effects['u_judge'], contestant_effects['u_fan'],
-                        s=100, c=contestant_effects['placement'], cmap='RdYlGn_r',
-                        alpha=0.7, edgecolors='white', linewidths=1)
-    
-    # 参考线
-    ax.axhline(y=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    ax.axvline(x=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
-    
-    # 趋势线
-    z = np.polyfit(contestant_effects['u_judge'], contestant_effects['u_fan'], 1)
-    p = np.poly1d(z)
-    x_line = np.linspace(contestant_effects['u_judge'].min(), contestant_effects['u_judge'].max(), 100)
-    ax.plot(x_line, p(x_line), '--', color=COLORS['both'], linewidth=2, alpha=0.8,
-           label=f'Trend (rho={rho:.3f})')
-    
-    # 标注极端案例
-    for quadrant_name, condition in [
-        ('Tech Weak/Fan Strong', lambda r: r['u_judge'] < -2 and r['u_fan'] > 1.5),
-        ('Tech Strong/Fan Weak', lambda r: r['u_judge'] > 2 and r['u_fan'] < -1.5)
-    ]:
-        cases = contestant_effects[contestant_effects.apply(condition, axis=1)]
-        for _, case in cases.head(3).iterrows():
-            ax.annotate(case['celebrity_name'][:12], 
-                       xy=(case['u_judge'], case['u_fan']),
-                       xytext=(8, 5), textcoords='offset points',
-                       fontsize=8, alpha=0.8)
-    
-    ax.set_xlabel('Judge Score Random Effect (u_judge)', fontsize=11, fontweight='bold')
-    ax.set_ylabel('Fan Vote Random Effect (u_fan)', fontsize=11, fontweight='bold')
-    ax.set_title(f'Judge-Fan Alignment: Random Effects Correlation\n(rho = {rho:.3f})', 
-                fontsize=13, fontweight='bold', pad=15)
-    ax.legend(loc='best', fontsize=10)
-    ax.grid(alpha=0.3, linestyle='--')
-    
-    plt.colorbar(scatter, label='Final Placement', ax=ax)
-    
-    plt.tight_layout()
-    plt.savefig(f'{save_dir}/Task3_rho_scatter.png', dpi=300, facecolor='white')
-    plt.close()
-    print(f"    Saved: Task3_rho_scatter.png")
+
+    with plt.rc_context({
+        'font.family': ['Times New Roman', 'Times', 'serif'],
+        'font.size': 12
+    }):
+        fig, ax = plt.subplots(figsize=(11.5, 7.5), facecolor='white')
+        ax.set_facecolor('white')
+
+        # 按placement着色
+        scatter = ax.scatter(
+            contestant_effects['u_judge'],
+            contestant_effects['u_fan'],
+            s=90,
+            c=contestant_effects['placement'],
+            cmap='RdYlGn_r',
+            alpha=0.7,
+            edgecolors='white',
+            linewidths=0.8
+        )
+
+        # 参考线
+        ax.axhline(y=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+        ax.axvline(x=0, color='gray', linestyle='--', linewidth=1, alpha=0.7)
+
+        # 趋势线
+        z = np.polyfit(contestant_effects['u_judge'], contestant_effects['u_fan'], 1)
+        p = np.poly1d(z)
+        x_line = np.linspace(contestant_effects['u_judge'].min(), contestant_effects['u_judge'].max(), 100)
+        ax.plot(
+            x_line,
+            p(x_line),
+            '--',
+            color=COLORS['both'],
+            linewidth=2,
+            alpha=0.8,
+            label=f'Trend (rho={rho:.3f})'
+        )
+
+        # 标注极端案例
+        for quadrant_name, condition in [
+            ('Tech Weak/Fan Strong', lambda r: r['u_judge'] < -2 and r['u_fan'] > 1.5),
+            ('Tech Strong/Fan Weak', lambda r: r['u_judge'] > 2 and r['u_fan'] < -1.5)
+        ]:
+            cases = contestant_effects[contestant_effects.apply(condition, axis=1)]
+            for _, case in cases.head(3).iterrows():
+                ax.annotate(
+                    case['celebrity_name'][:12],
+                    xy=(case['u_judge'], case['u_fan']),
+                    xytext=(8, 5),
+                    textcoords='offset points',
+                    fontsize=10,
+                    alpha=0.8
+                )
+
+        ax.set_xlabel('Judge Score Random Effect (u_judge)', fontsize=14, fontweight='normal')
+        ax.set_ylabel('Fan Vote Random Effect (u_fan)', fontsize=14, fontweight='normal')
+        ax.set_title(
+            f'Judge-Fan Alignment: Random Effects Correlation\n(rho = {rho:.3f})',
+            fontsize=15,
+            fontweight='normal',
+            pad=12
+        )
+        ax.tick_params(labelsize=12)
+        ax.legend(loc='best', fontsize=11)
+        ax.grid(alpha=0.25, linestyle='--')
+
+        cbar = fig.colorbar(scatter, ax=ax, pad=0.02, fraction=0.04)
+        cbar.outline.set_visible(False)
+        cbar.set_label('Final Placement', fontsize=12, fontweight='normal')
+        cbar.ax.tick_params(labelsize=11)
+
+        ax.margins(x=0.04, y=0.04)
+        fig.subplots_adjust(left=0.1, right=0.88, top=0.9, bottom=0.12)
+
+        plt.savefig(f'{save_dir}/Task3_4_rho_scatter.png', dpi=300, facecolor='white')
+        plt.close()
+        print(f"    Saved: Task3_4_rho_scatter.png")
 
 
 def create_waterfall_variance(var_df, judge_model, fan_model, save_dir):
@@ -983,11 +1015,6 @@ def create_waterfall_variance(var_df, judge_model, fan_model, save_dir):
     plt.savefig(f'{save_dir}/Task3_5_waterfall_variance.png', dpi=300, facecolor='white')
     plt.close()
     print(f"    Saved: Task3_5_waterfall_variance.png")
-
-
-def create_rho_scatter(contestant_effects, rho, save_dir):
-    """图4: 随机效应散点图（识别争议选手）"""
-    print("\n  [4/6] Creating Random Effects Scatter...")
 
 
 def create_pro_dancer_radar(panel_df, save_dir):
